@@ -1,72 +1,19 @@
+from rdkit import Chem
+import pickle
 import numpy as np
 import pandas as pd
+from IPython.display import display
 from copy import deepcopy
+
 from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem.Draw import SimilarityMaps
+from rdkit import DataStructs
 from rdkit.Chem import rdFMCS
 from rdkit.Chem import AllChem
+from rdkit.Chem import rdchem
 
-
-# # Load processed data
-dataset = pd.read_csv("datasets/processed_data.csv", index_col=0)
-
-def get_connecting_atoms(mol, subgraph):
-    '''
-    Finds pair of atoms that connect 'mol' to 'subgraph'
-    mol: Complete molecule
-    subgraph: Part of mol (reaction signatire)
-    
-    Returns:
-        [(A1, A2), (A1', A2'), ...]
-        Where each tuple is a connected pair of atom such that A1 \in subgraph, A2 \in (mol-subgraph)
-    '''
-    # get subgraph matches
-    matches = np.array(mol.GetSubstructMatches(subgraph))
-    connections = []
-    for match in matches:
-        # atoms in connected subgraph
-        atoms = [mol.GetAtomWithIdx(int(match[i])) for i in range(len(match))]
-        for atom in atoms:
-            # for each atom in connected subgraph, get neighbors
-            neighbors = atom.GetNeighbors()
-            neighbor_idx = set([n.GetIdx() for n in neighbors])
-            # if there is a neighbor in (mol - subgraph), add connection to 
-            if (neighbor_idx - set(match)):
-                if len(neighbor_idx - set(match)) == 1:
-                    connections.append((atom.GetIdx(), (neighbor_idx - set(match)).pop()))
-
-    # remove repetitions
-    connections = list(set(connections))
-    return connections
-
-def connect_substructures_if_applicable(mol, connections):
-    '''
-    If multiple connections have an atom in common, combine the substructures with the connection atom.
-    Even if not, add the connecting atom to the substructure to maintain uniformity.
-    mol: Molecule
-    connections: (same as return of get_connecting_atoms)
-    
-    Returns:
-        connections with substructures combined (same format as input connections)
-    '''
-    # combine if two connections have common atom in substructure
-    d = {conn[1]: [] for conn in connections}
-    for conn in connections:
-        d[conn[1]].append(conn)
-    connections = []
-    for key in d:
-        # combine
-        atom = mol.GetAtomWithIdx(key)
-        neighbors = atom.GetNeighbors()
-        # get neighbors not in previous connections
-        neighbor_idx = set([n.GetIdx() for n in neighbors]) - set([n[0] for n in d[key]])
-        if len(neighbor_idx) == 1:
-            for idx in neighbor_idx:
-                connections.append((key, idx))
-        else:
-            # let it be
-            connections.extend(d[key])
-    return connections
-
+dataset = pd.read_csv("/home/abhor/Desktop/datasets/my_uspto/processed_data.csv", index_col=0)
 
 # draw molecule with index
 def mol_with_atom_index( mol ):
@@ -76,65 +23,144 @@ def mol_with_atom_index( mol ):
         mol.GetAtomWithIdx( idx ).SetProp( 'molAtomMapNumber', str( mol.GetAtomWithIdx( idx ).GetIdx() ) )
     return mol
 
-def get_substructures(mol1, mol2):
+def highlight_atoms(mol, hit_ats):
     '''
-    Takes 2 molecules. 
-    Returns (common_substructure, reac_sig1, reac_sig2)
+    Highlight the atoms in mol that have index in 'hit_ats'
     '''
-    # find common substruction (to later substract)
-    res=rdFMCS.FindMCS([mol1, mol2])
-    common_substructure = Chem.MolFromSmarts(res.smartsString)
+#     # this is the code given in rdkit docs but doesn't actually work
+#     d = rdMolDraw2D.MolDraw2DSVG(500, 500) # or MolDraw2DCairo to get PNGs
+#     rdMolDraw2D.PrepareAndDrawMolecule(d, mol, highlightAtoms=hit_ats,)
+    mol.__sssAtoms = hit_ats # workaround for now. Might not work in a later version of rdkit
 
-    # reaction signature in mol 1
-    mol1_diff = AllChem.DeleteSubstructs(mol1, common_substructure)
+class RLMol:
+    def __init__(self, mol):
+        self.mol = mol
+    
+    def display_mol(self, atom_num=False, highlight=False):
+        mol = Chem.MolFromSmiles(Chem.MolToSmiles(self.mol))
+        if atom_num:
+            mol = mol_with_atom_index(mol)
+        if highlight:
+            highlight_atoms(mol, self.sig)
+        display(mol)
+        
+    def calculate_centres_and_signatures(self, common_subsequence, debug=False):
+        # input
+        mol = Chem.Mol(self.mol)
+        cs = Chem.Mol(common_subsequence)
+        
+        # deal with atom indices
+        mol_indices = list(range(mol.GetNumAtoms()))
+        mol_indices_in_cs = np.array(rdchem.Mol(mol).GetSubstructMatch(cs))
+        
+        # find signature
+        difference = list(set(mol_indices) - set(mol_indices_in_cs))
+        self.sig = difference
+        
+        # find centre
+        self.cen = []
+        for idx in self.sig:
+            atom = mol.GetAtomWithIdx(idx)
+            neighbors = atom.GetNeighbors()
+            neighbors_indices = list(map(lambda x: x.GetIdx(), neighbors))
+            if set(neighbors_indices) - set(self.sig): # this atom has a neighbor outside of signature
+                self.cen.append(idx)
 
-    # reaction signature in mol 2
-    mol2_diff = AllChem.DeleteSubstructs(mol2, common_substructure)
+        # if debug, display
+        if debug:
+            print("Signature")
+            self.display_mol(atom_num=True, highlight=True)
+            
+            print("Centre at", self.cen)
     
-    return common_substructure, mol1_diff, mol2_diff
+    def get_signature(self):
+        # calc Mol from list of ints
+        sig = None
+        mol = mol_with_atom_index(self.mol)
+        with Chem.RWMol(mol) as mw:
+            for idx in set(list(range(self.mol.GetNumAtoms()))) - set(self.sig):
+                mw.RemoveAtom(idx)
+            sig = Chem.Mol(mw)
+        return mw
     
-def get_reaction_signatures(i):
+    def get_smiles_signature(self):
+        return Chem.MolToSmiles(self.get_signature())
+    
+    def get_centre(self):
+        return self.cen
+                
+
+class Reaction:
+    def __init__(self, reactant, product):
+        self.reactant = RLMol(reactant)
+        self.product = RLMol(product)
+        
+    def _GetMCS(self):
+        '''Get the Maximum common subsequence from reactant and product'''
+        mcs = rdFMCS.FindMCS([self.reactant.mol, self.product.mol])
+        return Chem.MolFromSmarts(mcs.smartsString)
+    
+    def display_reactant(self, atom_num=False, highlight=False):
+        self.reactant.display_mol(atom_num, highlight)
+            
+            
+    def display_product(self, atom_num=False, highlight=False):
+        self.product.display_mol(atom_num, highlight)
+    
+    def calculate_centres_and_signatures(self, debug=False):
+        '''
+        Calculates centres and signatures from reactants and products
+        Returns None
+        '''
+        mcs = self._GetMCS()
+        if debug:
+            print("Reactant\n")
+        self.reactant.calculate_centres_and_signatures(mcs, debug)
+        
+        if debug:
+            print("-"*100, "\nProduct\n")
+        self.product.calculate_centres_and_signatures(mcs, debug)
+    
+    def get_signatures(self):
+        # calc Mol from atom indices
+        return self.reactant.get_signature(), self.product.get_signature()
+    
+    def get_smiles_signatures(self):
+        return self.reactant.get_smiles_signature(), self.product.get_smiles_signature()
+    
+    def get_centres(self):
+        # calc 
+        return self.reactant.get_centre(), self.product.get_centre()
+        
+rsig_list = []
+psig_list = []
+rcen_list = []
+pcen_list = []
+
+for i in range(dataset.shape[0]):
     mol1 = Chem.MolFromSmiles(dataset["reactants"][i])
     mol2 = Chem.MolFromSmiles(dataset["products"][i])
 
-    # get reaction signatures
-    common_substructure, mol1_diff, mol2_diff = get_substructures(mol1, mol2)
-
-    # mapping of molecule idx to common_substructure idx
-    mol1_to_com_map = np.array(mol1.GetSubstructMatch(common_substructure))
-    mol2_to_com_map = np.array(mol2.GetSubstructMatch(common_substructure))
-
-    def comm_idx1(idx):
-        '''
-        return the atom idx in comm_sub corresponding to 'idx' in mol1
-        '''
-        arr = abs(np.array(mol1_to_com_map) - idx)
-        if 0 not in arr:
-            return -1
-        return arr.argmin()
-
-    def comm_idx2(idx):
-        '''
-        return the atom idx in comm_sub corresponding to 'idx' in mol2
-        '''
-        arr = abs(np.array(mol2_to_com_map) - idx)
-        if 0 not in arr:
-            return -1
-        return arr.argmin()
-
-
-    com_to_mol1_map = list(map(comm_idx1, mol1_to_com_map))
-    com_to_mol2_map = list(map(comm_idx2, mol2_to_com_map))
-
-    # get connection points
-    con1 = get_connecting_atoms(mol1, mol1_diff)
-    con2 = get_connecting_atoms(mol2, mol2_diff)
-
-    con1 = list(filter(lambda x: (comm_idx1(x[1]) in com_to_mol1_map) and (comm_idx1(x[0]) not in com_to_mol1_map), con1))
-    con2 = list(filter(lambda x: (comm_idx2(x[1]) in com_to_mol2_map) and (comm_idx2(x[0]) not in com_to_mol2_map), con2))
+    R = Reaction(mol1, mol2)
+    R.calculate_centres_and_signatures()
     
-    con1, con2 = connect_substructures_if_applicable(mol1, con1), connect_substructures_if_applicable(mol2, con2)
+    rcen, pcen = R.get_centres()
+    rsig, psig = R.get_smiles_signatures()
     
-    # verification
-    assert len(con1) <= 1
-    assert len(con2) <= 1
+    rsig_list.append(rsig)
+    psig_list.append(psig)    
+    rcen_list.append(rcen)    
+    pcen_list.append(pcen)    
+    
+    print(i)
+
+df = dataset.iloc[:100]
+
+df = df.drop("reagents", axis=1)
+
+df["rsig"] = rsig_list
+df["psig"] = psig_list
+df["rcen"] = rcen_list
+df["pcen"] = pcen_list
+
+df.to_csv("datasets/my_uspto/simulator_dataset.csv")
