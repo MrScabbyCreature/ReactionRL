@@ -14,7 +14,6 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import rdchem
 
 dataset = pd.read_csv("/home/abhor/Desktop/datasets/my_uspto/processed_data.csv", index_col=0)
-dataset = dataset.iloc[:500]
 
 # draw molecule with index
 def mol_with_atom_index( mol ):
@@ -156,10 +155,10 @@ def sig_and_cen_collector(df, return_dict = None):
         temp_pcen_list.append(pcen)    
 
     if return_dict is not None:
-        return_dict["rsig"].extend(temp_rsig_list)
-        return_dict["psig"].extend(temp_psig_list)
-        return_dict["rcen"].extend(temp_rcen_list)
-        return_dict["pcen"].extend(temp_pcen_list)
+        return_dict["rsig"] += temp_rsig_list
+        return_dict["psig"] += temp_psig_list
+        return_dict["rcen"] += temp_rcen_list
+        return_dict["pcen"] += temp_pcen_list
     else:
         return temp_rsig_list, temp_psig_list, temp_rcen_list, temp_pcen_list
 
@@ -194,12 +193,12 @@ def multiprocess_collector(df, return_dict):
     while not done:
         if p.is_alive():
             if time.time() - start_time > kill_threshold:
+                print("Killing.....")
                 p.kill()
                 break
         else:
             done = True
     p.join()
-    print(return_dict)
 
     # if completed successfully, return results
     if done:
@@ -207,10 +206,12 @@ def multiprocess_collector(df, return_dict):
 
     # not done - if df of size 1, return defaults instead
     if df.shape[0] == 1:
-        return_dict["rsig"].append('')
-        return_dict["psig"].append('')
-        return_dict["rcen"].append([])
-        return_dict["pcen"].append([])
+        print(len(return_dict["rsig"]))
+        return_dict["rsig"] += ['']
+        return_dict["psig"] += ['']
+        return_dict["rcen"] += [[]]
+        return_dict["pcen"] += [[]]
+        print(len(return_dict["rsig"]))
         return [''], [''], [[]], [[]]
     
     # not done - else divide df into 10 parts and repeat
@@ -241,6 +242,7 @@ if __name__ == "__main__":
 
 
     for i in range(dataset.shape[0]//n):
+        print("\n\n\n")
         print(i*n, min(i*n+n, dataset.shape[0]))
         man_dict = manager.dict()
         a, b, c, d = multiprocess_collector(dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], man_dict)
@@ -248,8 +250,6 @@ if __name__ == "__main__":
         psig_list.extend(b)
         rcen_list.extend(c)
         pcen_list.extend(d)
-
-    print(rsig_list)
 
     dataset = dataset.drop("reagents", axis=1)
 
