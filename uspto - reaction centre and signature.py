@@ -172,13 +172,15 @@ from multiprocessing import Pool
 from multiprocessing import Process, Manager
 import time
 
-def multiprocess_collector(df, return_dict):
+def multiprocess_collector(df, return_dict, unique=None):
     '''
     Collects signatures and centres for df using multiprocessing.
     Due to some reactions taking too long, the multiprocessing happens in recursion - 100 -> 10 -> 1 (size of df to process)
     Then all the results are collected and returned
     '''
-    print(f"GOT DF OF SHAPE {df.shape}")
+    if unique is None:
+        unique = int(np.random.random()*10000)
+    print(f"GOT DF OF SHAPE {df.shape}, {unique}")
     
     for x in ["rsig", "psig", "rcen", "pcen"]:
         if x not in return_dict:
@@ -190,7 +192,7 @@ def multiprocess_collector(df, return_dict):
 
     # terminate if takes too long
     done = False
-    kill_threshold = 10
+    kill_threshold = 10 * (int(np.log10(df.shape[0]))+1)
     while not done:
         if p.is_alive():
             if time.time() - start_time > kill_threshold:
@@ -222,7 +224,7 @@ def multiprocess_collector(df, return_dict):
     
     step_size = df.shape[0] // 10
     for i in range(10):
-        multiprocess_collector(df.iloc[i*step_size: (i+1)*step_size], return_dict)
+        multiprocess_collector(df.iloc[i*step_size: (i+1)*step_size], return_dict, unique)
     return return_dict["rsig"][:elements], return_dict["psig"][:elements], return_dict["rcen"][:elements], return_dict["pcen"][:elements]
 
 
@@ -236,10 +238,8 @@ if __name__ == "__main__":
     rcen_list = []
     pcen_list = []
 
-
-    with ThreadPool(processes=10) as tp:
-    # with Pool(processes=10) as tp:
-        res = tp.starmap(multiprocess_collector, map(lambda i: (dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], manager.dict()), range(dataset.shape[0]//n+1)))
+    with ThreadPool(processes=8) as tp:
+        res = tp.starmap(multiprocess_collector, map(lambda i: (dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], manager.dict(), f"{i*n}-{(i+1)*n}"), range(dataset.shape[0]//n+1)))
 
     for (a, b, c, d) in res:
         rsig_list.extend(a)
