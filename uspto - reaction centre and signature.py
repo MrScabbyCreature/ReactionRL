@@ -167,20 +167,16 @@ def sig_and_cen_collector(df, return_dict = None):
 #######################################
 
 # multiprocess it - cuz some reactions go into infinite loops
-from multiprocessing.pool import ThreadPool
-from multiprocessing import Pool
 from multiprocessing import Process, Manager
 import time
 
-def multiprocess_collector(df, return_dict, unique=None):
+def multiprocess_collector(df, return_dict):
     '''
     Collects signatures and centres for df using multiprocessing.
     Due to some reactions taking too long, the multiprocessing happens in recursion - 100 -> 10 -> 1 (size of df to process)
     Then all the results are collected and returned
     '''
-    if unique is None:
-        unique = int(np.random.random()*10000)
-    print(f"GOT DF OF SHAPE {df.shape}, {unique}")
+    print(f"GOT DF OF SHAPE {df.shape}")
     
     for x in ["rsig", "psig", "rcen", "pcen"]:
         if x not in return_dict:
@@ -192,7 +188,7 @@ def multiprocess_collector(df, return_dict, unique=None):
 
     # terminate if takes too long
     done = False
-    kill_threshold = 10 * (int(np.log10(df.shape[0]))+1)
+    kill_threshold = 10
     while not done:
         if p.is_alive():
             if time.time() - start_time > kill_threshold:
@@ -224,9 +220,8 @@ def multiprocess_collector(df, return_dict, unique=None):
     
     step_size = df.shape[0] // 10
     for i in range(10):
-        multiprocess_collector(df.iloc[i*step_size: (i+1)*step_size], return_dict, unique)
+        multiprocess_collector(df.iloc[i*step_size: (i+1)*step_size], return_dict)
     return return_dict["rsig"][:elements], return_dict["psig"][:elements], return_dict["rcen"][:elements], return_dict["pcen"][:elements]
-
 
 
 
@@ -238,10 +233,12 @@ if __name__ == "__main__":
     rcen_list = []
     pcen_list = []
 
-    with ThreadPool(processes=8) as tp:
-        res = tp.starmap(multiprocess_collector, map(lambda i: (dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], manager.dict(), f"{i*n}-{(i+1)*n}"), range(dataset.shape[0]//n+1)))
 
-    for (a, b, c, d) in res:
+    for i in range(dataset.shape[0]//n+1):
+        print("\n\n\n")
+        print(i*n, min(i*n+n, dataset.shape[0]))
+        man_dict = manager.dict()
+        a, b, c, d = multiprocess_collector(dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], man_dict)
         rsig_list.extend(a)
         psig_list.extend(b)
         rcen_list.extend(c)
@@ -254,5 +251,4 @@ if __name__ == "__main__":
     dataset["rcen"] = rcen_list
     dataset["pcen"] = pcen_list
 
-    print("Final shape:", dataset.shape)
-    dataset.to_csv("datasets/my_uspto/simulator_dataset.csv")
+    dataset.to_csv("data/simulator_dataset.csv")
