@@ -53,12 +53,19 @@ class RLMol:
         # deal with atom indices
         mol_indices = list(range(mol.GetNumAtoms()))
         mol_indices_in_cs = rdchem.Mol(mol).GetSubstructMatch(cs)
+        if not mol_indices_in_cs: # in some rare cases, GetSubstructureMatch returns empty tuple - rdkit algo problem
+            cs = rdFMCS.FindMCS([mol, cs])
+            self.common_subsequence = Chem.MolFromSmarts(cs.smartsString)
+            cs = Chem.Mol(self.common_subsequence)
+#             display(mcs)
+            mol_indices_in_cs = rdchem.Mol(mol).GetSubstructMatch(cs)
+            
         
         # find signature
         difference = list(set(mol_indices) - set(mol_indices_in_cs))
         self.sig = difference
         
-        # find centre
+        # find centre (and bond)
         self.cen = []
         for idx in self.sig:
             atom = mol.GetAtomWithIdx(idx)
@@ -66,6 +73,9 @@ class RLMol:
             neighbors_indices = list(map(lambda x: x.GetIdx(), neighbors))
             if set(neighbors_indices) - set(self.sig): # this atom has a neighbor outside of signature
                 self.cen.append(idx)
+        
+        # find bond
+        self.calc_bond()
 
         # if debug, display
         if debug:
@@ -101,6 +111,7 @@ class RLMol:
         if len(np.unique(conn_idx_list)) == 1:
             self.sig.append(conn_idx_list[0])
             self.cen = [conn_idx_list[0]]
+            self.calc_bond()
             
             # if debug, display
             if debug:
@@ -114,6 +125,13 @@ class RLMol:
         mol_indices_in_cs = np.array(rdchem.Mol(self.mol).GetSubstructMatch(rdchem.Mol(self.common_subsequence)))
         return int(abs(mol_indices_in_cs - self.cen[0]).argmin())
         
+    def calc_bond(self):
+        self.bond = []
+        for c in self.cen:
+            atom = self.mol.GetAtomWithIdx(c)
+            neighbors = atom.GetNeighbors()
+            neighbors_indices = list(map(lambda x: x.GetIdx(), neighbors))
+            self.bond.append([self.mol.GetBondBetweenAtoms(c, natom).GetBondTypeAsDouble() for natom in set(neighbors_indices) - set(self.sig)])
     
     def push_back_centre(self, cs_centre, debug):
         '''
@@ -138,6 +156,8 @@ class RLMol:
             self.cen = [int(rdchem.Mol(mol).GetSubstructMatch(cs)[cs_centre])]
             self.sig = list(self.cen)
         
+        self.calc_bond()
+        
         # if debug, display
         if debug:
             print("Signature")
@@ -159,6 +179,9 @@ class RLMol:
     
     def get_centre(self):
         return self.cen
+    
+    def get_bond(self):
+        return self.bond
                 
             
         
@@ -188,6 +211,9 @@ class Reaction:
         '''
         mcs = self._GetMCS()
         if self.debug:
+            print("MCS")
+            display(mcs)
+            print("-"*100+"\n")
             print("Reactant\n")
         self.reactant.calculate_centres_and_signatures(mcs, self.debug)
         
@@ -224,9 +250,11 @@ class Reaction:
         return self.reactant.get_smiles_signature(), self.product.get_smiles_signature()
     
     def get_centres(self):
-        # calc 
         return self.reactant.get_centre(), self.product.get_centre()
-        
+
+    def get_bonds(self):
+        return self.reactant.get_bond(), self.product.get_bond()
+
         
 
 def sig_and_cen_collector(df, return_dict = None):
@@ -234,6 +262,8 @@ def sig_and_cen_collector(df, return_dict = None):
     temp_psig_list = []
     temp_rcen_list = []
     temp_pcen_list = []
+    temp_rbond_list = []
+    temp_pbond_list = []
 
     for i in range(df.shape[0]):
         mol1 = Chem.MolFromSmiles(df["reactants"].iloc[i])
@@ -244,19 +274,24 @@ def sig_and_cen_collector(df, return_dict = None):
         
         rcen, pcen = R.get_centres()
         rsig, psig = R.get_smiles_signatures()
+        rbond, pbond = R.get_bonds()
         
         temp_rsig_list.append(rsig)
         temp_psig_list.append(psig)    
         temp_rcen_list.append(rcen)    
-        temp_pcen_list.append(pcen)    
+        temp_pcen_list.append(pcen) 
+        temp_rbond_list.append(rbond)
+        temp_pbond_list.append(pbond)   
 
     if return_dict is not None:
         return_dict["rsig"] += temp_rsig_list
         return_dict["psig"] += temp_psig_list
         return_dict["rcen"] += temp_rcen_list
         return_dict["pcen"] += temp_pcen_list
+        return_dict["rbond"] += temp_rbond_list
+        return_dict["pbond"] += temp_pbond_list
     else:
-        return temp_rsig_list, temp_psig_list, temp_rcen_list, temp_pcen_list
+        return temp_rsig_list, temp_psig_list, temp_rcen_list, temp_pcen_list, temp_rbond_list, temp_pbond_list
 
 #######################################
 # CALLING FUNCTIONS - MULTIPROCESSING #
@@ -274,7 +309,7 @@ def multiprocess_collector(df, return_dict):
     '''
     print(f"GOT DF OF SHAPE {df.shape}")
     
-    for x in ["rsig", "psig", "rcen", "pcen"]:
+    for x in ["rsig", "psig", "rcen", "pcen", 'rbond', 'pbond']:
         if x not in return_dict:
             return_dict[x] = []
     # spawn process to run on whole df
@@ -297,7 +332,7 @@ def multiprocess_collector(df, return_dict):
 
     # if completed successfully, return results
     if done:
-        return return_dict["rsig"], return_dict["psig"], return_dict["rcen"], return_dict["pcen"]
+        return return_dict["rsig"], return_dict["psig"], return_dict["rcen"], return_dict["pcen"], return_dict["rbond"], return_dict["pbond"]
 
     # not done - if df of size 1, return defaults instead
     if df.shape[0] == 1:
@@ -305,7 +340,9 @@ def multiprocess_collector(df, return_dict):
         return_dict["psig"] += ['']
         return_dict["rcen"] += [[]]
         return_dict["pcen"] += [[]]
-        return [''], [''], [[]], [[]]
+        return_dict["rbond"] += [[]]
+        return_dict["pbond"] += [[]]
+        return [''], [''], [[]], [[]], [[]], [[]]
     
     # not done - else divide df into 10 parts and repeat
     elements = 100
@@ -317,7 +354,7 @@ def multiprocess_collector(df, return_dict):
     step_size = df.shape[0] // 10
     for i in range(10):
         multiprocess_collector(df.iloc[i*step_size: (i+1)*step_size], return_dict)
-    return return_dict["rsig"][:elements], return_dict["psig"][:elements], return_dict["rcen"][:elements], return_dict["pcen"][:elements]
+    return return_dict["rsig"][:elements], return_dict["psig"][:elements], return_dict["rcen"][:elements], return_dict["pcen"][:elements], return_dict["rbond"][:elements], return_dict["rbond"][:elements]
 
 
 
@@ -328,17 +365,20 @@ if __name__ == "__main__":
     psig_list = []
     rcen_list = []
     pcen_list = []
-
+    rbond_list = []
+    pbond_list = []
 
     for i in range(dataset.shape[0]//n+1):
         print("\n\n\n")
         print(i*n, min(i*n+n, dataset.shape[0]))
         man_dict = manager.dict()
-        a, b, c, d = multiprocess_collector(dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], man_dict)
+        a, b, c, d, e, f = multiprocess_collector(dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], man_dict)
         rsig_list.extend(a)
         psig_list.extend(b)
         rcen_list.extend(c)
         pcen_list.extend(d)
+        rbond_list.extend(e)
+        pbond_list.extend(f)
 
     dataset = dataset.drop("reagents", axis=1)
 
@@ -346,5 +386,9 @@ if __name__ == "__main__":
     dataset["psig"] = psig_list
     dataset["rcen"] = rcen_list
     dataset["pcen"] = pcen_list
+    dataset["rbond"] = rbond_list
+    dataset["pbond"] = pbond_list
 
-    dataset.to_csv("data/simulator_dataset.csv")
+    file = "/home/abhor/Desktop/datasets/my_uspto/simulator_dataset.csv"
+    dataset.to_csv(file)
+    print("Dumped file at", file)
