@@ -35,6 +35,7 @@ def highlight_atoms(mol, hit_ats):
 class RLMol:
     def __init__(self, mol):
         self.mol = mol
+        self.pushback = False
     
     def display_mol(self, atom_num=False, highlight=False):
         mol = Chem.Mol(self.mol)
@@ -117,9 +118,9 @@ class RLMol:
             if debug:
                 print("Signature")
                 self.display_mol(atom_num=True, highlight=True)
-                        
-            return True
-        return False
+            
+            self.pushback = True
+        return self.pushback
     
     def get_centre_in_cs(self):
         mol_indices_in_cs = np.array(rdchem.Mol(self.mol).GetSubstructMatch(rdchem.Mol(self.common_subsequence)))
@@ -158,18 +159,43 @@ class RLMol:
         
         self.calc_bond()
         
+        self.pushback = True
+        
         # if debug, display
         if debug:
             print("Signature")
             self.display_mol(atom_num=True, highlight=True)
             
-     
-    def get_signature(self):
+    def get_subgraph(self):
         # calc Mol from list of ints
         sig = None
         mol = mol_with_atom_index(self.mol)
         with Chem.RWMol(mol) as mw:
             for idx in set(list(range(self.mol.GetNumAtoms()))) - set(self.sig):
+                mw.RemoveAtom(idx)
+            sig = Chem.Mol(mw)
+        return mw
+    
+    def get_smiles_subgraph(self):
+        return Chem.MolToSmiles(self.get_subgraph())
+    
+    def get_signature(self):
+        # Add neighbors of self.cen and its neighbors to subgraph
+        neighbors = []
+        for c in self.cen:
+            neighbors.extend([atom.GetIdx() for atom in self.mol.GetAtomWithIdx(c).GetNeighbors()])
+    
+        if not self.pushback:
+            additional_neighbors = []
+            for n in neighbors:
+                additional_neighbors.extend([atom.GetIdx() for atom in self.mol.GetAtomWithIdx(n).GetNeighbors()])
+            neighbors.extend(additional_neighbors)
+        
+        # calc Mol from list of ints
+        sig = None
+        mol = mol_with_atom_index(self.mol)
+        with Chem.RWMol(mol) as mw:
+            for idx in set(list(range(self.mol.GetNumAtoms()))) - (set(self.sig).union(set(neighbors))):
                 mw.RemoveAtom(idx)
             sig = Chem.Mol(mw)
         return mw
@@ -246,6 +272,12 @@ class Reaction:
         # calc Mol from atom indices
         return self.reactant.get_signature(), self.product.get_signature()
     
+    def get_subgraphs(self):
+        return self.reactant.get_subgraph(), self.product.get_subgraph()
+    
+    def get_smiles_subgraphs(self):
+        return self.reactant.get_smiles_subgraph(), self.product.get_smiles_subgraph()
+    
     def get_smiles_signatures(self):
         return self.reactant.get_smiles_signature(), self.product.get_smiles_signature()
     
@@ -254,12 +286,13 @@ class Reaction:
 
     def get_bonds(self):
         return self.reactant.get_bond(), self.product.get_bond()
-
         
 
 def sig_and_cen_collector(df, return_dict = None):
     temp_rsig_list = []
     temp_psig_list = []
+    temp_rsub_list = []
+    temp_psub_list = []
     temp_rcen_list = []
     temp_pcen_list = []
     temp_rbond_list = []
@@ -273,11 +306,14 @@ def sig_and_cen_collector(df, return_dict = None):
         R.calculate_centres_and_signatures()
         
         rcen, pcen = R.get_centres()
+        rsub, psub = R.get_smiles_subgraphs()
         rsig, psig = R.get_smiles_signatures()
         rbond, pbond = R.get_bonds()
         
         temp_rsig_list.append(rsig)
         temp_psig_list.append(psig)    
+        temp_rsub_list.append(rsub)
+        temp_psub_list.append(psub)    
         temp_rcen_list.append(rcen)    
         temp_pcen_list.append(pcen) 
         temp_rbond_list.append(rbond)
@@ -286,12 +322,14 @@ def sig_and_cen_collector(df, return_dict = None):
     if return_dict is not None:
         return_dict["rsig"] += temp_rsig_list
         return_dict["psig"] += temp_psig_list
+        return_dict["rsub"] += temp_rsub_list
+        return_dict["psub"] += temp_psub_list
         return_dict["rcen"] += temp_rcen_list
         return_dict["pcen"] += temp_pcen_list
         return_dict["rbond"] += temp_rbond_list
         return_dict["pbond"] += temp_pbond_list
     else:
-        return temp_rsig_list, temp_psig_list, temp_rcen_list, temp_pcen_list, temp_rbond_list, temp_pbond_list
+        return temp_rsig_list, temp_psig_list, temp_rsub_list, temp_psub_list, temp_rcen_list, temp_pcen_list, temp_rbond_list, temp_pbond_list
 
 #######################################
 # CALLING FUNCTIONS - MULTIPROCESSING #
@@ -309,7 +347,7 @@ def multiprocess_collector(df, return_dict):
     '''
     print(f"GOT DF OF SHAPE {df.shape}")
     
-    for x in ["rsig", "psig", "rcen", "pcen", 'rbond', 'pbond']:
+    for x in ["rsig", "psig", "rsub", "psub", "rcen", "pcen", 'rbond', 'pbond']:
         if x not in return_dict:
             return_dict[x] = []
     # spawn process to run on whole df
@@ -332,17 +370,19 @@ def multiprocess_collector(df, return_dict):
 
     # if completed successfully, return results
     if done:
-        return return_dict["rsig"], return_dict["psig"], return_dict["rcen"], return_dict["pcen"], return_dict["rbond"], return_dict["pbond"]
+        return return_dict["rsig"], return_dict["psig"], return_dict["rsub"], return_dict["psub"], return_dict["rcen"], return_dict["pcen"], return_dict["rbond"], return_dict["pbond"]
 
     # not done - if df of size 1, return defaults instead
     if df.shape[0] == 1:
         return_dict["rsig"] += ['']
         return_dict["psig"] += ['']
+        return_dict["rsub"] += ['']
+        return_dict["psub"] += ['']
         return_dict["rcen"] += [[]]
         return_dict["pcen"] += [[]]
         return_dict["rbond"] += [[]]
         return_dict["pbond"] += [[]]
-        return [''], [''], [[]], [[]], [[]], [[]]
+        return [''], [''], [''], [''], [[]], [[]], [[]], [[]]
     
     # not done - else divide df into 10 parts and repeat
     elements = 100
@@ -354,7 +394,8 @@ def multiprocess_collector(df, return_dict):
     step_size = df.shape[0] // 10
     for i in range(10):
         multiprocess_collector(df.iloc[i*step_size: (i+1)*step_size], return_dict)
-    return return_dict["rsig"][:elements], return_dict["psig"][:elements], return_dict["rcen"][:elements], return_dict["pcen"][:elements], return_dict["rbond"][:elements], return_dict["rbond"][:elements]
+    return return_dict["rsig"][:elements], return_dict["psig"][:elements], return_dict["rsub"][:elements], return_dict["psub"][:elements], \
+                return_dict["rcen"][:elements], return_dict["pcen"][:elements], return_dict["rbond"][:elements], return_dict["rbond"][:elements]
 
 
 
@@ -363,6 +404,8 @@ if __name__ == "__main__":
     manager = Manager()
     rsig_list = []
     psig_list = []
+    rsub_list = []
+    psub_list = []
     rcen_list = []
     pcen_list = []
     rbond_list = []
@@ -372,18 +415,22 @@ if __name__ == "__main__":
         print("\n\n\n")
         print(i*n, min(i*n+n, dataset.shape[0]))
         man_dict = manager.dict()
-        a, b, c, d, e, f = multiprocess_collector(dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], man_dict)
+        a, b, c, d, e, f, g, h = multiprocess_collector(dataset.iloc[i*n:min(i*n+n, dataset.shape[0])], man_dict)
         rsig_list.extend(a)
         psig_list.extend(b)
-        rcen_list.extend(c)
-        pcen_list.extend(d)
-        rbond_list.extend(e)
-        pbond_list.extend(f)
+        rsub_list.extend(c)
+        psub_list.extend(d)
+        rcen_list.extend(e)
+        pcen_list.extend(f)
+        rbond_list.extend(g)
+        pbond_list.extend(h)
 
     dataset = dataset.drop("reagents", axis=1)
 
     dataset["rsig"] = rsig_list
     dataset["psig"] = psig_list
+    dataset["rsub"] = rsub_list
+    dataset["psub"] = psub_list
     dataset["rcen"] = rcen_list
     dataset["pcen"] = pcen_list
     dataset["rbond"] = rbond_list
@@ -392,3 +439,5 @@ if __name__ == "__main__":
     file = "/home/abhor/Desktop/datasets/my_uspto/simulator_dataset.csv"
     dataset.to_csv(file)
     print("Dumped file at", file)
+    print("Final shape:", dataset.shape)
+    print("Final columns:", dataset.columns)
