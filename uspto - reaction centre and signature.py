@@ -110,6 +110,9 @@ class RLMol:
             
         # if they have common atom, merge
         if len(np.unique(conn_idx_list)) == 1:
+            # If connecting atom is aromatic, don't merge
+            if mol.GetAtomWithIdx(conn_idx_list[0]).GetIsAromatic():
+                return False
             self.sig.append(conn_idx_list[0])
             self.cen = [conn_idx_list[0]]
             self.calc_bond()
@@ -179,6 +182,31 @@ class RLMol:
     def get_smiles_subgraph(self):
         return Chem.MolToSmiles(self.get_subgraph())
     
+    
+    def add_aromatic_ring_if_possible(self, atom_indices): 
+        # Aromatic atoms cannot be represented individually in signatures so we add the whole ring if possible
+        mol = Chem.Mol(self.mol)
+        atoms = list(map(mol.GetAtomWithIdx, atom_indices))
+        aromatic = any(list(map(lambda atom: atom.GetIsAromatic(), atoms)))
+
+        def get_neighbors():
+            neighbors = []
+            for n in list(map(lambda atom: atom.GetNeighbors(), [mol.GetAtomWithIdx(int(x)) for x in atom_indices])):
+                neighbors.extend(n)
+            neighbors = np.unique(list(map(lambda a: a.GetIdx(), neighbors)))
+            return neighbors
+
+        # if any aromtic atoms in neighbors, add them
+        repeat = True
+        while repeat:
+            repeat = False
+            for n in set(get_neighbors()) - set(atom_indices):
+                if n not in atom_indices and mol.GetAtomWithIdx(int(n)).GetIsAromatic():
+                    atom_indices.append(n)
+                    repeat = True
+
+        return atom_indices
+    
     def get_signature(self):
         # Add neighbors of self.cen and its neighbors to subgraph
         neighbors = []
@@ -190,6 +218,9 @@ class RLMol:
             for n in neighbors:
                 additional_neighbors.extend([atom.GetIdx() for atom in self.mol.GetAtomWithIdx(n).GetNeighbors()])
             neighbors.extend(additional_neighbors)
+        
+        # Add any aromatic rings if attached
+        neighbors = self.add_aromatic_ring_if_possible(neighbors)
         
         # calc Mol from list of ints
         sig = None
