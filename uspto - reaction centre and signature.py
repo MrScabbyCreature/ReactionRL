@@ -467,7 +467,7 @@ if __name__ == "__main__":
     dataset["rbond"] = rbond_list
     dataset["pbond"] = pbond_list
 
-    file = "/home/abhor/Desktop/datasets/my_uspto/simulator_dataset.csv"
+    file = "/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/simulator_dataset.csv"
     dataset.to_csv(file)
     print("Dumped file at", file)
     print("Final shape:", dataset.shape)
