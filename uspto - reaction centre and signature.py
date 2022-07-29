@@ -33,20 +33,35 @@ def highlight_atoms(mol, hit_ats):
 #     d = rdMolDraw2D.MolDraw2DSVG(500, 500) # or MolDraw2DCairo to get PNGs
 #     rdMolDraw2D.PrepareAndDrawMolecule(d, mol, highlightAtoms=hit_ats,)
     mol.__sssAtoms = hit_ats # workaround for now. Might not work in a later version of rdkit
-
 class RLMol:
     def __init__(self, mol):
         self.mol = mol
-        self.pushback = False
     
-    def display_mol(self, atom_num=False, highlight=False):
+    def display_mol(self, atom_num=False, highlight=None):
         mol = Chem.Mol(self.mol)
         if atom_num:
             mol = mol_with_atom_index(mol)
-        if highlight:
+        if highlight=="sub":
+            highlight_atoms(mol, self.sub)
+        if highlight=="sig":
             highlight_atoms(mol, self.sig)
         display(mol)
         
+    def calc_sig(self):
+        self.sig = list(self.sub)
+            
+        for _ in range(2):
+            temp_list = []
+            for n in self.sig:
+                temp_list.extend([atom.GetIdx() for atom in self.mol.GetAtomWithIdx(n).GetNeighbors()])
+            self.sig.extend(temp_list)
+            self.sig = list(set(self.sig))
+        
+        # Add any aromatic rings if attached
+        self.sig = self.add_aromatic_ring_if_possible(self.sig)
+        
+        self.sig = np.unique(self.sig).tolist()
+    
     def calculate_centres_and_signatures(self, common_subsequence, debug=False):
         # input
         mol = Chem.Mol(self.mol)
@@ -55,35 +70,40 @@ class RLMol:
         
         # deal with atom indices
         mol_indices = list(range(mol.GetNumAtoms()))
-        mol_indices_in_cs = rdchem.Mol(mol).GetSubstructMatch(cs)
+        mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
         if not mol_indices_in_cs: # in some rare cases, GetSubstructureMatch returns empty tuple - rdkit algo problem
             cs = rdFMCS.FindMCS([mol, cs])
             self.common_subsequence = Chem.MolFromSmarts(cs.smartsString)
             cs = Chem.Mol(self.common_subsequence)
 #             display(mcs)
-            mol_indices_in_cs = rdchem.Mol(mol).GetSubstructMatch(cs)
+            mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
             
         
         # find signature
         difference = list(set(mol_indices) - set(mol_indices_in_cs))
-        self.sig = difference
+        self.sub = difference
         
         # find centre (and bond)
         self.cen = []
-        for idx in self.sig:
+        for idx in self.sub:
             atom = mol.GetAtomWithIdx(idx)
             neighbors = atom.GetNeighbors()
             neighbors_indices = list(map(lambda x: x.GetIdx(), neighbors))
-            if set(neighbors_indices) - set(self.sig): # this atom has a neighbor outside of signature
+            if set(neighbors_indices) - set(self.sub): # this atom has a neighbor outside of signature
                 self.cen.append(idx)
         
         # find bond
         self.calc_bond()
+        
+        # find sig
+        self.calc_sig()
 
         # if debug, display
         if debug:
+            print("Subgraph")
+            self.display_mol(atom_num=True, highlight="sub")
             print("Signature")
-            self.display_mol(atom_num=True, highlight=True)
+            self.display_mol(atom_num=True, highlight="sig")
             
             print("Centre at", self.cen)
     
@@ -99,7 +119,7 @@ class RLMol:
         
         conn_atom_d = {}
         conn_idx_list = []
-        mol_indices_in_cs = rdchem.Mol(mol).GetSubstructMatch(cs)
+        mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
         for cen in self.cen:
             cen_atom = mol.GetAtomWithIdx(cen)
             cen_neighbors_indices = list(map(lambda x: x.GetIdx(), cen_atom.GetNeighbors()))
@@ -115,31 +135,43 @@ class RLMol:
             # If connecting atom is aromatic, don't merge
             if mol.GetAtomWithIdx(conn_idx_list[0]).GetIsAromatic():
                 return False
-            self.sig.append(conn_idx_list[0])
+            self.sub.append(conn_idx_list[0])
             self.cen = [conn_idx_list[0]]
             self.calc_bond()
+            self.calc_sig()
             
             # if debug, display
             if debug:
+                print("Subgraph")
+                self.display_mol(atom_num=True, highlight="sub")
                 print("Signature")
-                self.display_mol(atom_num=True, highlight=True)
+                self.display_mol(atom_num=True, highlight="sig")
+
+                print("Centre at", self.cen)
             
-            self.pushback = True
-        return self.pushback
+            return True
+        return False
     
-    def get_centre_in_cs(self):
+    def get_centre_in_cs(self, merge=False):
+        '''
+        Get the index in cs that is equivalent to centre in mol
+        
+        If this is for a merge operation, then re
+        '''
         mol = Chem.Mol(self.mol)
         cs = Chem.Mol(self.common_subsequence)
         
-        # Get the atom index in cs connected to centre
-        cen_neighbors_indices = list(map(lambda x: x.GetIdx(), mol.GetAtomWithIdx(self.cen[0]).GetNeighbors()))
         mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
-
-        # Gives error for 1 atom molecules (which ideally shouldn't be in the dataset but idk)
-        try:
-            connecting_atom_idx = list(set(cen_neighbors_indices).intersection(set(mol_indices_in_cs)))[0]
-        except Exception as e:
+        
+        if merge:
             connecting_atom_idx = self.cen[0]
+        else:
+            try:
+                # Get the atom index in cs connected to centre
+                cen_neighbors_indices = list(map(lambda x: x.GetIdx(), mol.GetAtomWithIdx(self.cen[0]).GetNeighbors()))
+                connecting_atom_idx = list(set(cen_neighbors_indices).intersection(set(mol_indices_in_cs)))[0]
+            except Exception as e:
+                connecting_atom_idx = self.cen[0]
         
         mol_indices_in_cs = np.array(mol_indices_in_cs)
         return int(abs(mol_indices_in_cs - connecting_atom_idx).argmin())
@@ -150,7 +182,7 @@ class RLMol:
             atom = self.mol.GetAtomWithIdx(c)
             neighbors = atom.GetNeighbors()
             neighbors_indices = list(map(lambda x: x.GetIdx(), neighbors))
-            self.bond.append([self.mol.GetBondBetweenAtoms(c, natom).GetBondTypeAsDouble() for natom in set(neighbors_indices) - set(self.sig)])
+            self.bond.append([self.mol.GetBondBetweenAtoms(c, natom).GetBondTypeAsDouble() for natom in set(neighbors_indices) - set(self.sub)])
     
     def push_back_centre(self, cs_centre, debug):
         '''
@@ -167,31 +199,34 @@ class RLMol:
             mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
             connecting_atom_idx = list(set(cen_neighbors_indices).intersection(set(mol_indices_in_cs)))[0]
 
-            self.sig.append(connecting_atom_idx)
+            self.sub.append(connecting_atom_idx)
             self.cen = [connecting_atom_idx]
 
         else:
             # calculate the reaction centre from common subsequence and use it for signature
-            self.cen = [int(rdchem.Mol(mol).GetSubstructMatch(cs)[cs_centre])]
-            self.sig = list(self.cen)
+            self.cen = [int(Chem.Mol(mol).GetSubstructMatch(cs)[cs_centre])]
+            self.sub = list(self.cen)
         
         self.calc_bond()
-        
-        self.pushback = True
+        self.calc_sig()
         
         # if debug, display
         if debug:
+            print("Subgraph")
+            self.display_mol(atom_num=True, highlight="sub")
             print("Signature")
-            self.display_mol(atom_num=True, highlight=True)
+            self.display_mol(atom_num=True, highlight="sig")
+            
+            print("Centre at", self.cen)
             
     def get_subgraph(self):
         # calc Mol from list of ints
-        sig = None
+        sub = None
         mol = mol_with_atom_index(self.mol)
         with Chem.RWMol(mol) as mw:
-            for idx in set(list(range(self.mol.GetNumAtoms()))) - set(self.sig):
+            for idx in set(list(range(self.mol.GetNumAtoms()))) - set(self.sub):
                 mw.RemoveAtom(idx)
-            sig = Chem.Mol(mw)
+            sub = Chem.Mol(mw)
         return mw
     
     def get_smiles_subgraph(self):
@@ -223,27 +258,15 @@ class RLMol:
         return atom_indices
     
     def get_signature(self):
-        # Add neighbors of self.cen and its neighbors to subgraph
-        neighbors = []
-        for c in self.cen:
-            neighbors.extend([atom.GetIdx() for atom in self.mol.GetAtomWithIdx(c).GetNeighbors()])
-    
-        if not self.pushback:
-            additional_neighbors = []
-            for n in neighbors:
-                additional_neighbors.extend([atom.GetIdx() for atom in self.mol.GetAtomWithIdx(n).GetNeighbors()])
-            neighbors.extend(additional_neighbors)
-        
-        # Add any aromatic rings if attached
-        neighbors = self.add_aromatic_ring_if_possible(neighbors)
+        self.calc_sig()
         
         # calc Mol from list of ints
-        sig = None
+        sub = None
         mol = mol_with_atom_index(self.mol)
         with Chem.RWMol(mol) as mw:
-            for idx in set(list(range(self.mol.GetNumAtoms()))) - (set(self.sig).union(set(neighbors))):
+            for idx in set(list(range(self.mol.GetNumAtoms()))) - set(self.sig):
                 mw.RemoveAtom(idx)
-            sig = Chem.Mol(mw)
+            sub = Chem.Mol(mw)
         return mw
     
     def get_smiles_signature(self):
@@ -285,6 +308,7 @@ class Reaction:
         if self.debug:
             print("MCS")
             display(mol_with_atom_index(mcs))
+            print("-"*100+"\n")
             print("Reactant\n")
         self.reactant.calculate_centres_and_signatures(mcs, self.debug)
         
@@ -302,16 +326,22 @@ class Reaction:
             pmerge = self.product.try_to_merge(self.debug)
         
         # if only one merge was successful, push back the centre by one atom in the other
+        if self.debug and ((rmerge and not pmerge) or (pmerge and not rmerge)):
+            print("-"*100+"\n")
+            print("Merge..")
         if rmerge and not pmerge:
-            self.product.push_back_centre(self.reactant.get_centre_in_cs(), self.debug)
+            self.product.push_back_centre(self.reactant.get_centre_in_cs(merge=True), self.debug)
         elif pmerge and not rmerge:
-            self.reactant.push_back_centre(self.product.get_centre_in_cs(), self.debug)
+            self.reactant.push_back_centre(self.product.get_centre_in_cs(merge=True), self.debug)
             
         # CASE 2: Reactant signature is Hydrogen
         rcen, pcen = self.get_centres()
         if len(rcen) == 0 and len(pcen) != 0:
-            self.reactant.push_back_centre(self.product.get_centre_in_cs(), self.debug)
-            self.product.push_back_centre(self.reactant.get_centre_in_cs(), self.debug)
+            if self.debug:
+                print("-"*100+"\n")
+                print("Pushback..")
+            self.reactant.push_back_centre(self.product.get_centre_in_cs(merge=False), self.debug)
+            self.product.push_back_centre(self.reactant.get_centre_in_cs(merge=False), self.debug)
     
     def get_signatures(self):
         # calc Mol from atom indices
