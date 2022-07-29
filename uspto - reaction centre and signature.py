@@ -1,3 +1,5 @@
+from csv import excel_tab
+from sqlite3 import connect
 from rdkit import Chem
 import pickle
 import numpy as np
@@ -13,7 +15,7 @@ from rdkit.Chem import rdFMCS
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdchem
 
-dataset = pd.read_csv("/home/abhor/Desktop/datasets/my_uspto/processed_data.csv", index_col=0)
+dataset = pd.read_csv("/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/processed_data.csv", index_col=0)
 
 # draw molecule with index
 def mol_with_atom_index( mol ):
@@ -126,8 +128,21 @@ class RLMol:
         return self.pushback
     
     def get_centre_in_cs(self):
-        mol_indices_in_cs = np.array(rdchem.Mol(self.mol).GetSubstructMatch(rdchem.Mol(self.common_subsequence)))
-        return int(abs(mol_indices_in_cs - self.cen[0]).argmin())
+        mol = Chem.Mol(self.mol)
+        cs = Chem.Mol(self.common_subsequence)
+        
+        # Get the atom index in cs connected to centre
+        cen_neighbors_indices = list(map(lambda x: x.GetIdx(), mol.GetAtomWithIdx(self.cen[0]).GetNeighbors()))
+        mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
+
+        # Gives error for 1 atom molecules (which ideally shouldn't be in the dataset but idk)
+        try:
+            connecting_atom_idx = list(set(cen_neighbors_indices).intersection(set(mol_indices_in_cs)))[0]
+        except Exception as e:
+            connecting_atom_idx = self.cen[0]
+        
+        mol_indices_in_cs = np.array(mol_indices_in_cs)
+        return int(abs(mol_indices_in_cs - connecting_atom_idx).argmin())
         
     def calc_bond(self):
         self.bond = []
@@ -149,7 +164,7 @@ class RLMol:
             cen = self.cen[0]
             cen_atom = mol.GetAtomWithIdx(cen)
             cen_neighbors_indices = list(map(lambda x: x.GetIdx(), cen_atom.GetNeighbors()))
-            mol_indices_in_cs = rdchem.Mol(mol).GetSubstructMatch(cs)
+            mol_indices_in_cs = Chem.Mol(mol).GetSubstructMatch(cs)
             connecting_atom_idx = list(set(cen_neighbors_indices).intersection(set(mol_indices_in_cs)))[0]
 
             self.sig.append(connecting_atom_idx)
@@ -269,8 +284,7 @@ class Reaction:
         mcs = self._GetMCS()
         if self.debug:
             print("MCS")
-            display(mcs)
-            print("-"*100+"\n")
+            display(mol_with_atom_index(mcs))
             print("Reactant\n")
         self.reactant.calculate_centres_and_signatures(mcs, self.debug)
         
