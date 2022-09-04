@@ -18,7 +18,7 @@ dataset["reactant_tested"] = [False]*dataset.shape[0]
 dataset["action_works"] = [True] * dataset.shape[0]
 dataset["action_tested"] = [False] * dataset.shape[0]
 
-def find_bad_action_index(in_mol, temp_df):
+def find_bad_action_index(in_mol, temp_df, return_q=None):
     bad_actions = []
     for j in range(temp_df.shape[0]):
         action = temp_df.iloc[j]
@@ -29,17 +29,21 @@ def find_bad_action_index(in_mol, temp_df):
                                     action["psub"], action["pcen"], action["psig"], action["psig_cs_indices"])
         except Exception as e:
             bad_actions.append(action.name)
-    return bad_actions
-
+    if return_q:
+        return_q.put(bad_actions)
+    else:
+        return bad_actions
 
 
 if __name__ == "__main__":
     count = 0
+    process_limit = 15
     t = time.time()
-    # manager = Manager()
-    # result_q = manager.Queue()
+    process_list = []
+    manager = Manager()
+    result_q = manager.Queue()
 
-    for i in range(0, 10):#dataset.shape[0]):
+    for i in range(0, 100):#dataset.shape[0]):
         in_mol = Chem.MolFromSmiles(dataset.iloc[i]["reactants"])
         dataset["reactant_tested"].iat[i] = True
 
@@ -50,12 +54,31 @@ if __name__ == "__main__":
         else:
             # Tested's
             dataset.loc[temp_df.index, "action_tested"] = True
-            # Worked's
-            for action in find_bad_action_index(in_mol, temp_df):
-                dataset["action_works"].at[action] = False
-        print(i, time.time()-t, f"{dataset['reactant_tested'].sum()}({dataset.loc[dataset['reactant_tested']]['reactant_works'].sum()})", 
-                                    f"{dataset['action_tested'].sum()}({dataset.loc[dataset['action_tested']]['action_works'].sum()})")
+            
+            # Start a process to find bad actions
+            process_list.append(Process(target=find_bad_action_index, args=(in_mol, temp_df, result_q)))
+            process_list[-1].start()
+            
+            # Completed processes
+            if len(process_list) == process_limit:
+                p = process_list.pop(0)
+                p.join()
+                bad_actions = result_q.get()
+                for action in bad_actions:
+                    dataset["action_works"].at[action] = False
+            print(i, time.time()-t, f"{dataset['reactant_tested'].sum()}({dataset.loc[dataset['reactant_tested']]['reactant_works'].sum()})", 
+                                        f"{dataset['action_tested'].sum()}({dataset.loc[dataset['action_tested']]['action_works'].sum()})")
         t = time.time()
+
+    # Get the remaining processes
+    while process_list:
+        p = process_list.pop(0)
+        p.join()
+        bad_actions = result_q.get()
+        for action in bad_actions:
+            dataset["action_works"].at[action] = False
+        print(i, time.time()-t, f"{dataset['reactant_tested'].sum()}({dataset.loc[dataset['reactant_tested']]['reactant_works'].sum()})", 
+                                        f"{dataset['action_tested'].sum()}({dataset.loc[dataset['action_tested']]['action_works'].sum()})")
 
     print("Dumping...")
     dataset.to_csv("/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/action_dataset-filtered.csv")
