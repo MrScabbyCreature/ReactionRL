@@ -247,13 +247,14 @@ class RLMol:
             return neighbors
 
         # if any aromtic atoms in neighbors, add them
-        repeat = True
-        while repeat:
-            repeat = False
-            for n in set(get_neighbors()) - set(atom_indices):
-                if n not in atom_indices and mol.GetAtomWithIdx(int(n)).GetIsAromatic():
-                    atom_indices.append(n)
-                    repeat = True
+        if aromatic:
+            repeat = True
+            while repeat:
+                repeat = False
+                for n in set(get_neighbors()) - set(atom_indices):
+                    if n not in atom_indices and mol.GetAtomWithIdx(int(n)).GetIsAromatic():
+                        atom_indices.append(n)
+                        repeat = True
 
         return atom_indices
     
