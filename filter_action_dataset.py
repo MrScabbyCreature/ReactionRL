@@ -1,3 +1,7 @@
+'''
+To run: time python filter_action_dataset.py 2> errors.txt
+'''
+
 import time
 # from utils import *
 from rdkit import Chem
