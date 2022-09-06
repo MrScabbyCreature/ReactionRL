@@ -37,13 +37,13 @@ def find_bad_action_index(in_mol, temp_df, return_q=None):
 
 if __name__ == "__main__":
     count = 0
-    process_limit = 15
+    process_limit = 11
     t = time.time()
     process_list = []
     manager = Manager()
     result_q = manager.Queue()
 
-    for i in range(0, 100):#dataset.shape[0]):
+    for i in range(0, dataset.shape[0]):
         in_mol = Chem.MolFromSmiles(dataset.iloc[i]["reactants"])
         dataset["reactant_tested"].iat[i] = True
 
