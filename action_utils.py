@@ -126,7 +126,13 @@ def get_applicable_rsig_clusters(in_mol):
         # Remove atom (not directly, otherwise the index resets)
         # First remove bonds to x
         in_mol_kekulized = Chem.Mol(in_mol)
-        Chem.Kekulize(in_mol_kekulized, clearAromaticFlags=True)
+        try:
+            Chem.Kekulize(in_mol_kekulized, clearAromaticFlags=True)
+        except Exception as e:
+            print("#"*100)
+            print(Chem.MolToSmiles(in_mol))
+            display_mol(mol_with_atom_index(in_mol))
+            exit()
         mw = Chem.RWMol(in_mol_kekulized)
         for n in mw.GetAtomWithIdx(x).GetNeighbors():
             mw.RemoveBond(x, n.GetIdx())
@@ -148,7 +154,6 @@ def get_applicable_rsig_clusters(in_mol):
                 try:
                     Chem.SanitizeMol(candidate)
                 except Exception as e:
-                    print("ERORORORORORORORRO")
                     print(e)
 
                 # get certificate and search in rsig
@@ -162,13 +167,13 @@ def get_applicable_rsig_clusters(in_mol):
                                 applicable_actions.append(cluster_id)
     return applicable_actions
 
-def get_random_action(mol, random_state=40):
+def get_random_action(mol, random_state=None):
     applicable_clusters = get_applicable_rsig_clusters(mol)
     return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
 
     # random sample
-    sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0]
-    print("Action loc", sample.name)
+    sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0] # FIXME: Can sometimes give error due to no applicable actions
+    print(sample.name)
     return sample.values
 
 def filter_sensible_rsig_matches(mol, rsig_matches, rsig, rsub, rcen):
@@ -242,6 +247,8 @@ def apply_action(input_mol, rsub, rcen, rsig, rsig_cs_indices, psub, pcen, psig,
     mol = mol_without_atom_index(Chem.Mol(rwmol)) # with atom number, the molecule ends up invalid after conversion to non-editable(Chem.Mol)
     if Chem.MolFromSmiles(Chem.MolToSmiles(mol)) is None:
         mol = Chem.MolFromSmiles(clean_hydrogen_in_smiles(Chem.MolToSmiles(mol)))
+    else:
+        mol = Chem.MolFromSmiles(Chem.MolToSmiles(mol)) # Without this, rdkit forms some weird internal representation of the mol which cannot kekulize in the next transition
 
     assert Chem.MolFromSmiles(Chem.MolToSmiles(mol)) is not None, "Final mol is not valid"
     assert "." not in Chem.MolToSmiles(mol), "More than 1 molecule in result"

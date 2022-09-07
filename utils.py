@@ -84,7 +84,7 @@ def display_mol(mol, title=None):
     im = Draw.MolToImage(mol)
     im.show(title)
 
-def get_concat_v_multi_resize(im_list, resample=Image.BICUBIC):
+def get_concat_v_multi_resize(im_list, resample=Image.Resampling.BICUBIC):
     min_width = min(im.width for im in im_list)
     im_list_resize = [im.resize((min_width, int(im.height * min_width / im.width)),resample=resample)
                     for im in im_list]

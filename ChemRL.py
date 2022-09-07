@@ -80,7 +80,7 @@ class ChemRlEnv(gym.Env):
     # Update trajectory info
     self.trajectory.add_transition(self.state, action, next_state, rew)
 
-    # Check if done
+    # Check if done TODO: Add condition that if no actions, end episode early
     if self.trajectory.get_trajectory_len() >= MAX_EPISODE_LEN:
       done = True
     else:
@@ -140,7 +140,7 @@ if __name__ == "__main__":
   # print(check_env(env))
 
   # Run a demo
-  observation, info = env.reset(seed=42, return_info=True)
+  observation, info = env.reset(seed=None, return_info=True)
   print("Starting mol:", Chem.MolToSmiles(info["mol"]))
 
   done = False
