@@ -1,9 +1,14 @@
-from argparse import Action
+'''
+Action format (for now) = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
+'''
+
 import gym
 from gym.spaces import Box, Discrete, Dict
 import numpy as np
 import pandas as pd
+
 from rdkit import Chem
+from rdkit.Chem import AllChem, Draw
 from action_utils import *
 from utils import *
 
@@ -23,6 +28,19 @@ class TrajectoryTracker:
   def iter_trajectory(self):
     for transition in self.trajectory:
       yield transition
+
+  def get_trajectory_as_reactions(self):
+    '''
+    Converts the trajectory information to sequence of reactions with rsig and psig as reagents
+    '''
+    reactions = []
+    for s, a, ns, r in self.trajectory:
+      reactant = Chem.MolToSmiles(s)
+      rsig = smiles_without_atom_index(a[2])
+      psig = smiles_without_atom_index(a[6])
+      product = Chem.MolToSmiles(ns)
+      reactions.append(AllChem.ReactionFromSmarts(f'{reactant}>{rsig}.{psig}>{product}',useSmiles=True))
+    return reactions
 
 class ChemRlEnv(gym.Env):
   """Custom Environment that follows gym interface"""
@@ -46,9 +64,6 @@ class ChemRlEnv(gym.Env):
                                 "psub": Box(low=low, high=high, shape=(K,), dtype=np.float32),
                                 "pcen": Discrete(100),
                             }) 
-
-    self.obs, info = self.reset(return_info=True)
-    self.state = info["mol"]
 
   def _get_info(self, mol):
     return {"mol": mol}
@@ -86,25 +101,31 @@ class ChemRlEnv(gym.Env):
     # Get a random mol to start with
     smiles = start_mols.sample(random_state=seed).iloc[0]
     mol = Chem.MolFromSmiles(smiles)
+    self.state = mol
     
     # info
     info = self._get_info(mol)
 
     # Get state embedding to return as the observation
     obs = state_embedding(mol)
-    return (obs, info) if return_info else mol
+
+    return (obs, info) if return_info else obs
 
 
-  def render(self):
-    # Render the environment to the screen
+  def render(self): #TODO: update the previous render image 
+    '''Render the environment to the terminal or screen(as an image). Preferably do it only at the end of the episode.'''
     # Print on console
     if self.render_mode == 'ansi': 
       for s, a, ns, r in self.trajectory.iter_trajectory():
         print(f"{Chem.MolToSmiles(s)} ---> {Chem.MolToSmiles(ns)} (r={r})")
-      print()
+
     # Generate displays
     if self.render_mode == "human":
-      pass # TODO
+      reactions = self.trajectory.get_trajectory_as_reactions()
+      reaction_images = [Draw.ReactionToImage(rxn) for rxn in reactions]
+
+      im = get_concat_v_multi_resize(reaction_images)
+      im.show()
 
   def close(self):
     pass
@@ -112,7 +133,7 @@ class ChemRlEnv(gym.Env):
 
 if __name__ == "__main__":
   # define env
-  env = ChemRlEnv()
+  env = ChemRlEnv(render_mode="human")
 
   # Check the environment conforms to gym API
   from gym.utils.env_checker import check_env
@@ -120,19 +141,17 @@ if __name__ == "__main__":
 
   # Run a demo
   observation, info = env.reset(seed=42, return_info=True)
-  print(observation, info)
-  display_mol(info["mol"])
+  print("Starting mol:", Chem.MolToSmiles(info["mol"]))
 
   done = False
   while not done:
-    print("RENDER")
-    env.render()
     action = get_random_action(info["mol"])
     print("ACTION")
     print(action)
     observation, reward, done, info = env.step(action)
     print(observation, reward, done, info)
 
+  env.render()
 
   env.close()
 
