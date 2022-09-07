@@ -3,6 +3,7 @@ This code reads simulator_dataset.csv and extracts all unique mols.
 '''
 from rdkit import Chem
 from rdkit.Chem import AllChem
+from rdkit.Chem import Draw
 import re
 
 def get_mol_certificate(mol):
@@ -65,3 +66,19 @@ def GetAtomWithAtomMapNum(mol, num):
         if atom.GetAtomMapNum() == num:
             return atom
     return None
+
+def state_embedding(mol): # TODO
+    return 0
+
+def action_embedding(rsub, rcen, rsig, psub, pcen, psig): # TODO
+    return 0
+
+def calc_reward(state, action, next_state, metric='logp'):
+    '''
+    Get the reward based on some Chemical metric (logp, QED, DRD2)
+    '''
+    return 0 # TODO
+
+def display_mol(mol, title=None):
+    im = Draw.MolToImage(mol)
+    im.show(title)

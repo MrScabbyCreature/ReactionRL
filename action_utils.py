@@ -9,7 +9,8 @@ import tqdm
 import pickle
 import networkx as nx
 
-dataset = pd.read_csv("/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/action_dataset-updated.csv", index_col=0)
+dataset = pd.read_csv("/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/action_dataset-filtered.csv", index_col=0)
+dataset = dataset[dataset["action_works"] & dataset["action_tested"]]
 path_to_rsig_cluster_dict = "/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/rsig_cluster_dict.pickle"
 path_to_certi_dict = "/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/certi_dict.pickle"
 
@@ -118,7 +119,7 @@ def get_mol_from_index_list(mol, indices):
     
 def get_applicable_rsig_clusters(in_mol):
     # For each cut vertex, we find two disconnected components and search the smaller one in our index
-    G = nx.from_numpy_matrix(Chem.GetAdjacencyMatrix(in_mol))
+    G = nx.from_numpy_array(Chem.GetAdjacencyMatrix(in_mol))
     applicable_actions = []
 
     for x in nx.articulation_points(G):
@@ -147,8 +148,8 @@ def get_applicable_rsig_clusters(in_mol):
                 try:
                     Chem.SanitizeMol(candidate)
                 except Exception as e:
+                    print("ERORORORORORORORRO")
                     print(e)
-                    print(Chem.MolToSmiles(candidate))
 
                 # get certificate and search in rsig
                 cand_certi = get_mol_certificate(candidate)
@@ -161,11 +162,14 @@ def get_applicable_rsig_clusters(in_mol):
                                 applicable_actions.append(cluster_id)
     return applicable_actions
 
-# TODO: Change clusters to action id's
-# def get_random_action(mol):
-#     applicable_clusters = get_applicable_rsig_clusters(mol)
-#     return_format = ["rsig", "rsub", "rcen", "psig", "psub", "pcen"]
-#     return dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample()[return_format]
+def get_random_action(mol, random_state=40):
+    applicable_clusters = get_applicable_rsig_clusters(mol)
+    return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
+
+    # random sample
+    sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0]
+    print("Action loc", sample.name)
+    return sample.values
 
 def filter_sensible_rsig_matches(mol, rsig_matches, rsig, rsub, rcen):
     '''
