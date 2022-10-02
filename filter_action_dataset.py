@@ -1,5 +1,7 @@
 '''
 To run: time python filter_action_dataset.py 2> errors.txt
+
+This file marks those actions which give error in the database.
 '''
 
 import time

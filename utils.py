@@ -68,12 +68,6 @@ def GetAtomWithAtomMapNum(mol, num):
             return atom
     return None
 
-def state_embedding(mol): # TODO
-    return 0
-
-def action_embedding(rsub, rcen, rsig, psub, pcen, psig): # TODO
-    return 0
-
 def calc_reward(state, action, next_state, metric='logp'):
     '''
     Get the reward based on some Chemical metric (logp, QED, DRD2)

@@ -8,11 +8,14 @@ from utils import *
 import tqdm
 import pickle
 import networkx as nx
+import os
 
-dataset = pd.read_csv("/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/action_dataset-filtered.csv", index_col=0)
+main_dir = os.getenv('MAIN_DIR')
+
+dataset = pd.read_csv(os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv"), index_col=0)
 dataset = dataset[dataset["action_works"] & dataset["action_tested"]]
-path_to_rsig_cluster_dict = "/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/rsig_cluster_dict.pickle"
-path_to_certi_dict = "/home/abhor/Desktop/repos/ReactionRL/datasets/my_uspto/certi_dict.pickle"
+path_to_rsig_cluster_dict = os.path.join(main_dir, "datasets/my_uspto/rsig_cluster_dict.pickle")
+path_to_certi_dict = os.path.join("datasets/my_uspto/certi_dict.pickle")
 
 # Fetch the rsigs using the clusters # TODO: Dump the pickles if the csv is updated(md5?)
 try:
@@ -173,7 +176,6 @@ def get_random_action(mol, random_state=None):
 
     # random sample
     sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0] # FIXME: Can sometimes give error due to no applicable actions
-    print(sample.name)
     return sample.values
 
 def filter_sensible_rsig_matches(mol, rsig_matches, rsig, rsub, rcen):

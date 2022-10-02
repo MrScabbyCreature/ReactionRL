@@ -2,6 +2,15 @@ import deepchem as dc
 import torch
 from torch import nn
 import dgl
+import pickle
+import sys
+
+class Unpickler(pickle.Unpickler): # Pickle stores module info during torch.save so I have to allow it to search in a different module to torch.load
+    def find_class(self, module, name):
+        if module == "__main__":
+            return super(Unpickler, self).find_class(__name__, name)
+        return super(Unpickler, self).find_class(module, name)
+
 
 class MPNNMolEmbedder(nn.Module):
     """MPNN embedder."""
@@ -13,7 +22,7 @@ class MPNNMolEmbedder(nn.Module):
 
     def _prepare_batch(self, g):
         dgl_graphs = [graph.to_dgl_graph() for graph in g]
-        inputs = dgl.batch(dgl_graphs).to("cpu")
+        inputs = dgl.batch(dgl_graphs).to("cpu") # FIXME: Dynamic device(?)
         return inputs
         
     def forward(self, g):
@@ -40,7 +49,7 @@ class MPNNAtomEmbedder(nn.Module):
 
     def _prepare_batch(self, g):
         dgl_graphs = [graph.to_dgl_graph() for graph in g]
-        inputs = dgl.batch(dgl_graphs).to("cpu")
+        inputs = dgl.batch(dgl_graphs).to("cpu") # FIXME: Device????
         return inputs
         
     def forward(self, g, idx):
@@ -62,16 +71,16 @@ class MPNNAtomEmbedder(nn.Module):
 f = dc.feat.MolGraphConvFeaturizer(use_edges=True, use_partial_charge=True)
 
 # Model
-mol_em_model = torch.load("models/MPNNMolEmbedder.pt")
-atom_em_model = torch.load("models/MPNNAtomEmbedder.pt")
+mol_em_model = torch.load("models/MPNNMolEmbedder.pt", pickle_module=sys.modules[__name__])
+atom_em_model = torch.load("models/MPNNAtomEmbedder.pt", pickle_module=sys.modules[__name__])
 
 def mol_to_embedding(mol):
     features = f.featurize([mol])[0]
-    return mol_em_model([features])[0]
+    return mol_em_model([features])[0].cpu().detach().numpy()
 
 def atom_to_embedding(mol, idx):
     features = f.featurize([mol])[0]
-    return atom_em_model([features], idx)
+    return atom_em_model([features], idx).cpu().detach().numpy()
 
 if __name__ == "__main__":
     from rdkit import Chem
