@@ -3,7 +3,7 @@ Action format (for now) = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "p
 '''
 
 import gym
-from gym.spaces import Box, Discrete, Dict
+from gym.spaces import Box
 import numpy as np
 import pandas as pd
 
@@ -45,12 +45,20 @@ class TrajectoryTracker:
 
 class ChemRlEnv(gym.Env):
   """Custom Environment that follows gym interface"""
-  metadata = {'render.modes': ['human', 'ansi']}
+  metadata = {'render.modes': ['human', 'ansi', "all"], "reward.metrics": ["logp", "qed", "drd2"]}
 
-  def __init__(self, low=-1, high=1, mol_embedding_fn=mol_to_embedding, atom_embedding_fn=atom_to_embedding, render_mode="ansi"):
+  def __init__(self, low=-1, high=1, mol_embedding_fn=mol_to_embedding, atom_embedding_fn=atom_to_embedding, reward_metric="logp", render_mode="ansi"):
     '''
     low = min value of 
     K = size of molecule embedding
+    mol_embedding_fn: function
+      Input: Mol
+      Output: Some fixed size vector representation of mol
+    atom_embedding_fn: function
+      Input: Mol, atom_idx
+      Output: Some fixed size vector representation of atom
+    reward_metric = metric to use as reward # TODO: Allow passing function / hyperparameters for linear combination of multiple properties
+      Currently supported: "logp", "qed", "drd2"
     '''
     super(ChemRlEnv, self).__init__()
     self.render_mode = render_mode
@@ -63,6 +71,7 @@ class ChemRlEnv(gym.Env):
     self.action_space = Box(low=low, high=high, shape=(4*mol_embedding_len+2*atom_embedding_len,), dtype=np.float32)
     self.mol_embedding_fn = mol_embedding_fn
     self.atom_embedding_fn = atom_embedding_fn
+    self.reward_metric = reward_metric
 
   def _get_info(self, mol):
     return {"mol": mol}
@@ -90,7 +99,7 @@ class ChemRlEnv(gym.Env):
     # FIXME: action should be an embedding and used for reverse lookup. For now it is [rsub, rcen, rsig, rsig_cs_indices, psub, pcen, psig, psig_cs_indices]
     # Note that the cs_indices are not actually part of action (and hence the embedding). They should be purely looked up (they are used for efficiency)
     next_state = apply_action(self.state, *action)
-    rew = calc_reward(self.state, action, next_state, metric='logp')
+    rew = calc_reward(self.state, action, next_state, metric=self.reward_metric)
 
     # Update trajectory info
     self.trajectory.add_transition(self.state, action, next_state, rew)
@@ -147,12 +156,12 @@ class ChemRlEnv(gym.Env):
   def render(self): #TODO: update the previous render image 
     '''Render the environment to the terminal or screen(as an image). Preferably do it only at the end of the episode.'''
     # Print on console
-    if self.render_mode == 'ansi': 
+    if self.render_mode in ['ansi', "all"]: 
       for s, a, ns, r in self.trajectory.iter_trajectory():
-        print(f"{Chem.MolToSmiles(s)} ---> {Chem.MolToSmiles(ns)} (r={r})")
+        print(f"{Chem.MolToSmiles(s)} --- {a[2]} || {a[6]} --->{Chem.MolToSmiles(ns)} (r={r})\n")
 
     # Generate displays
-    if self.render_mode == "human":
+    if self.render_mode in ["human", "all"]:
       reactions = self.trajectory.get_trajectory_as_reactions()
       reaction_images = [Draw.ReactionToImage(rxn) for rxn in reactions]
 
@@ -165,6 +174,10 @@ class ChemRlEnv(gym.Env):
 def get_args():
   parser = argparse.ArgumentParser()
   parser.add_argument("--seed", type=int, default=None, help="Seed to use for env.reset()")
+  parser.add_argument("--render", action="store_true", help="Whether to call env.render()")
+  parser.add_argument("--render-type", type=str, default="human", choices=ChemRlEnv.metadata["render.modes"], help="Render type. Only works if --render arg is provided.")
+  parser.add_argument("--reward-metric", type=str, default="logp", choices=ChemRlEnv.metadata["reward.metrics"], help="The reward metric to use. Cannot provide custom metric using args.")
+
   # parser.add_argument("-v", "--verbose", action="store_true", help="increase output verbosity")
   return parser.parse_args()
 
@@ -180,7 +193,7 @@ if __name__ == "__main__":
   args = get_args()
 
   # define env
-  env = ChemRlEnv(render_mode="human")
+  env = ChemRlEnv(reward_metric=args.reward_metric, render_mode=args.render_type)
 
   # Check the environment conforms to gym API
   from gym.utils.env_checker import check_env
@@ -204,7 +217,8 @@ if __name__ == "__main__":
     observation, reward, done, info = env.step(action)
     # print(observation, reward, done, info)
 
-  env.render()
+  if args.render:
+    env.render()
 
   env.close()
 

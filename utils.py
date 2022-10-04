@@ -6,6 +6,7 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import Draw
 import re
 from PIL import Image
+from rewards.properties import logP, qed, drd2, similarity
 
 def get_mol_certificate(mol):
     '''
@@ -72,7 +73,15 @@ def calc_reward(state, action, next_state, metric='logp'):
     '''
     Get the reward based on some Chemical metric (logp, QED, DRD2)
     '''
-    return 0 # TODO
+    if metric == "logp":
+        return logP(next_state) - logP(state)
+    elif metric == "qed":
+        return qed(next_state) - qed(state)
+    elif metric == "drd2":
+        return drd2(next_state) - drd2(state)
+    else:
+        raise f"Reward metric {metric} not found."
+    
 
 def display_mol(mol, title=None):
     im = Draw.MolToImage(mol)
