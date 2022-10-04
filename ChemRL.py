@@ -80,6 +80,9 @@ class ChemRlEnv(gym.Env):
                               self.mol_embedding_fn(psub), self.atom_embedding_fn(psig, GetAtomWithAtomMapNum(psig, pcen).GetIdx()), self.mol_embedding_fn(psig),])
     return embedding
 
+  def _get_random_action(self):
+    return self.next_random_action
+
   def step(self, action):
     '''
     Execute one time step within the environment
@@ -92,15 +95,22 @@ class ChemRlEnv(gym.Env):
     # Update trajectory info
     self.trajectory.add_transition(self.state, action, next_state, rew)
 
-    # Check if done TODO: Add condition that if no actions, end episode early
+    # Update current state
+    self.state = next_state
+    self.obs = self._state_embedding(self.state)
+
+    # Check if done - Conditions: 
+    # (1) Max episode length reached 
     if self.trajectory.get_trajectory_len() >= MAX_EPISODE_LEN:
       done = True
     else:
       done = False
 
-    # Update current state
-    self.state = next_state
-    self.obs = self._state_embedding(self.state)
+    # (2) No actions applicable on next state 
+    try:
+      self.next_random_action = get_random_action(self.state)
+    except:
+      done = True
 
     return self.obs, rew, done, self._get_info(self.state)
 
@@ -110,10 +120,20 @@ class ChemRlEnv(gym.Env):
     super().reset(seed=seed)
     self.trajectory = TrajectoryTracker()
 
-    # Get a random mol to start with
-    smiles = start_mols.sample(random_state=seed).iloc[0]
-    mol = Chem.MolFromSmiles(smiles)
+    # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
+    while True:
+      smiles = start_mols.sample(random_state=seed).iloc[0]
+      mol = Chem.MolFromSmiles(smiles)
+      try: # FIXME: Inefficient to do this in an infinite loop
+        self.next_random_action = get_random_action(mol)
+        if isinstance(seed, int):
+          seed+=1
+        break
+      except Exception as e:
+        pass
+
     self.state = mol
+
     
     # info
     info = self._get_info(mol)
@@ -175,7 +195,7 @@ if __name__ == "__main__":
     # Do not do action_space.sample() because not all actions are applicable on all states
     # Instead use get_random_action(mol) to get a random action applicable on the molecule
     # Otherwise, use action_space.sample() and find a way to convert to discretize it 
-    action = get_random_action(info["mol"])
+    action = env._get_random_action()
     action_embedding = env._action_embedding(action) 
 
 
