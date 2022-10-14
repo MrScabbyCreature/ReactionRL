@@ -12,6 +12,8 @@ from rdkit.Chem import AllChem, Draw
 from action_utils import *
 from utils import *
 from mol_embedding.chembl_mpnn import mol_to_embedding, atom_to_embedding
+from action_wrapper import MoleculeEmbeddingsActionWrapper
+
 
 start_mols = pd.read_pickle("datasets/my_uspto/unique_start_mols.pickle")
 MAX_EPISODE_LEN = 5
@@ -64,11 +66,13 @@ class ChemRlEnv(gym.Env):
     self.render_mode = render_mode
 
     # Define action and observation space 
+    self.low = low
+    self.high = high
     random_mol = start_mols[0]
     mol_embedding_len = mol_embedding_fn(random_mol).shape[-1]
     atom_embedding_len = atom_embedding_fn(random_mol, 0).shape[-1]
     self.observation_space = Box(low=low, high=high, shape=(mol_embedding_len,), dtype=np.float32)
-    self.action_space = Box(low=low, high=high, shape=(4*mol_embedding_len+2*atom_embedding_len,), dtype=np.float32)
+    self.action_space = Box(low=low, high=high, shape=(4*mol_embedding_len+2*atom_embedding_len,), dtype=np.float32) # TODO: Make default action space some tuple/dict of smile strings and centre(ints). The embedding space will be implemented through wrappers
     self.mol_embedding_fn = mol_embedding_fn
     self.atom_embedding_fn = atom_embedding_fn
     self.reward_metric = reward_metric
@@ -89,8 +93,8 @@ class ChemRlEnv(gym.Env):
                               self.mol_embedding_fn(psub), self.atom_embedding_fn(psig, GetAtomWithAtomMapNum(psig, pcen).GetIdx()), self.mol_embedding_fn(psig),])
     return embedding
 
-  def _get_random_action(self):
-    return self.next_random_action
+  def get_random_action(self):
+    return self._action_embedding(self.applicable_actions.sample().iloc[0]) # Can be done with the pickle dict for hash -> embedding (df.index is hash)
 
   def step(self, action):
     '''
@@ -98,7 +102,12 @@ class ChemRlEnv(gym.Env):
     '''
     # FIXME: action should be an embedding and used for reverse lookup. For now it is [rsub, rcen, rsig, rsig_cs_indices, psub, pcen, psig, psig_cs_indices]
     # Note that the cs_indices are not actually part of action (and hence the embedding). They should be purely looked up (they are used for efficiency)
-    next_state = apply_action(self.state, *action)
+    try:
+      next_state = apply_action(self.state, *action)
+    except:
+      print("State:", Chem.MolToSmiles(self.state))
+      print(action)
+      return self.obs, 0, True, {}
     rew = calc_reward(self.state, action, next_state, metric=self.reward_metric)
 
     # Update trajectory info
@@ -116,9 +125,10 @@ class ChemRlEnv(gym.Env):
       done = False
 
     # (2) No actions applicable on next state 
-    try:
-      self.next_random_action = get_random_action(self.state)
-    except:
+    # Since we're doing that here, might as well save this info for next timestep
+    # For exploration - we can return a random action from this. For exploitation, we can search for nearest neighbor from his list
+    self.applicable_actions = get_applicable_actions(self.state)
+    if self.applicable_actions.shape[0] == 0:
       done = True
 
     return self.obs, rew, done, self._get_info(self.state)
@@ -130,19 +140,18 @@ class ChemRlEnv(gym.Env):
     self.trajectory = TrajectoryTracker()
 
     # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
-    while True:
+    while True: # FIXME: Inefficient to do this in an infinite loop
       smiles = start_mols.sample(random_state=seed).iloc[0]
       mol = Chem.MolFromSmiles(smiles)
-      try: # FIXME: Inefficient to do this in an infinite loop
-        self.next_random_action = get_random_action(mol)
+      self.applicable_actions = get_applicable_actions(mol)
+      if self.applicable_actions.shape[0] == 0:
         if isinstance(seed, int):
           seed+=1
+        continue
+      else:
         break
-      except Exception as e:
-        pass
 
     self.state = mol
-
     
     # info
     info = self._get_info(mol)
@@ -193,7 +202,9 @@ if __name__ == "__main__":
   args = get_args()
 
   # define env
-  env = ChemRlEnv(reward_metric=args.reward_metric, render_mode=args.render_type)
+  _env = ChemRlEnv(reward_metric=args.reward_metric, render_mode=args.render_type)
+  env = MoleculeEmbeddingsActionWrapper(_env)
+
 
   # Check the environment conforms to gym API
   from gym.utils.env_checker import check_env
@@ -208,9 +219,7 @@ if __name__ == "__main__":
     # Do not do action_space.sample() because not all actions are applicable on all states
     # Instead use get_random_action(mol) to get a random action applicable on the molecule
     # Otherwise, use action_space.sample() and find a way to convert to discretize it 
-    action = env._get_random_action()
-    action_embedding = env._action_embedding(action) 
-
+    action = env.get_random_action()
 
     # print("ACTION")
     # print(action)

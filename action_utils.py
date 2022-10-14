@@ -123,7 +123,7 @@ def get_mol_from_index_list(mol, indices):
 def get_applicable_rsig_clusters(in_mol):
     # For each cut vertex, we find two disconnected components and search the smaller one in our index
     G = nx.from_numpy_array(Chem.GetAdjacencyMatrix(in_mol))
-    applicable_actions = []
+    applicable_clusters = []
 
     for x in nx.articulation_points(G):
         # Remove atom (not directly, otherwise the index resets)
@@ -166,17 +166,25 @@ def get_applicable_rsig_clusters(in_mol):
                     # Verify rsig
                     for cluster_id in certificate_to_cluster_id_dict[cand_certi]:
                         if verify_action_applicability(in_mol, indices, cluster_id):
-                            if cluster_id not in applicable_actions:
-                                applicable_actions.append(cluster_id)
-    return applicable_actions
+                            if cluster_id not in applicable_clusters:
+                                applicable_clusters.append(cluster_id)
+    return applicable_clusters
 
-def get_random_action(mol, random_state=None):
+
+
+def get_applicable_actions(mol, random_state=None):
     applicable_clusters = get_applicable_rsig_clusters(mol)
     return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
 
-    # random sample
-    sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0] # FIXME: Can sometimes give error due to no applicable actions
-    return sample.values
+    return dataset[dataset["rsig_clusters"].isin(applicable_clusters)][return_format]
+
+# def get_random_action(mol, random_state=None):
+#     applicable_clusters = get_applicable_rsig_clusters(mol)
+#     return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
+
+#     # random sample
+#     sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0] 
+#     return sample.values
 
 def filter_sensible_rsig_matches(mol, rsig_matches, rsig, rsub, rcen):
     '''
