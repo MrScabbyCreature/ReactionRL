@@ -4,15 +4,21 @@ from action_wrapper import MoleculeEmbeddingsActionWrapper
 from stable_baselines3 import A2C
 from rewards.properties import logP
 from rdkit import Chem
+import argparse
+from stable_baselines3.common.env_util import make_vec_env
 
-model_path = "models/a2c"
-# mode = "train"
-mode = "inference"
+parser = argparse.ArgumentParser()
+parser.add_argument("--unique-name", type=str, default="", help="name for saving file")
+args = parser.parse_args()
+
+model_path = "models/a2c" + args.unique_name
+mode = "train"
+# mode = "inference"
 
 if mode == "train":
     env = MoleculeEmbeddingsActionWrapper(ChemRlEnv())
-    model = A2C("MlpPolicy", env, verbose=1, tensorboard_log="./a2c/")
-    model.learn(total_timesteps=1e5)
+    model = A2C("MlpPolicy", env, verbose=1, tensorboard_log="./tensorboard/a2c" + args.unique_name)
+    model.learn(total_timesteps=1e7)
     model.save(model_path)
 
 mol_list = []
