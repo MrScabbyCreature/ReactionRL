@@ -170,6 +170,17 @@ def get_applicable_rsig_clusters(in_mol):
                                 applicable_clusters.append(cluster_id)
     return applicable_clusters
 
+def mark_action_invalid(idx):
+    # Load df
+    temp_df = pd.read_csv(os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv"), index_col=0)
+    
+    # Mark action invalid
+    temp_df.loc[idx, "action_works"] = False
+    
+    # Dump
+    temp_df.to_csv(os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv"))
+
+
 
 
 def get_applicable_actions(mol, random_state=None):

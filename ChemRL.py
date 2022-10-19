@@ -107,6 +107,7 @@ class ChemRlEnv(gym.Env):
     except:
       print("State:", Chem.MolToSmiles(self.state))
       print(action)
+      mark_action_invalid(action.name)
       return self.obs, 0, True, {}
     rew = calc_reward(self.state, action, next_state, metric=self.reward_metric)
 
