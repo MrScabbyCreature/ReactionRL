@@ -6,7 +6,7 @@ from rdkit import Chem
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--timesteps", type=int, default=1e6, help="Timesteps to run for")
+parser.add_argument("--timesteps", type=int, default=1000000, help="Timesteps to run for")
 parser.add_argument("--unique-name", type=str, default="", help="name for saving file")
 parser.add_argument("--mode", type=str, choices=["train", "inference"], required=True, help="Train or inference")
 parser.add_argument("--model-path-for-inference", type=str, default=None, help="Model path for inference")
