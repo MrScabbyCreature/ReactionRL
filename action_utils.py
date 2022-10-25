@@ -9,18 +9,27 @@ import tqdm
 import pickle
 import networkx as nx
 import os
+from filehash import FileHash
 
 main_dir = os.getenv('MAIN_DIR')
 
-dataset = pd.read_csv(os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv"), index_col=0)
+action_dataset_csv_path = "datasets/my_uspto/action_dataset-filtered.csv"
+action_dataset_hash_path = "datasets/my_uspto/action_dataset-filtered.hash"
+dataset = pd.read_csv(os.path.join(main_dir, action_dataset_csv_path), index_col=0)
 dataset = dataset[dataset["action_works"] & dataset["action_tested"]]
 path_to_rsig_cluster_dict = os.path.join(main_dir, "datasets/my_uspto/rsig_cluster_dict.pickle")
 path_to_certi_dict = os.path.join("datasets/my_uspto/certi_dict.pickle")
 
-# Fetch the rsigs using the clusters # TODO: Dump the pickles if the csv is updated(md5?)
+# Get rsig cluster and certificate dictionaries
 try:
+    action_dataset_csv_hash = FileHash("md5").hash_file(action_dataset_csv_path)
+    if open(action_dataset_hash_path, 'r').readline() != action_dataset_csv_hash:
+        print(f"{action_dataset_csv_path} file updated!")
+        raise Exception(f"{action_dataset_csv_path} file updated!")
     rsig_cluster_to_rsig_d = pickle.load(open(path_to_rsig_cluster_dict, 'rb'))
+    certificate_to_cluster_id_dict = pickle.load(open(path_to_certi_dict, 'rb'))
 except Exception as e: 
+    # Fetch the rsigs using the clusters 
     print("Calculating rsig_cluster dict....")
     rsig_cluster_to_rsig_d = {}
     for cluster_id in tqdm.tqdm(dataset["rsig_clusters"].unique()):
@@ -29,10 +38,7 @@ except Exception as e:
         rsig_cluster_to_rsig_d[cluster_id] = rsig
     pickle.dump(rsig_cluster_to_rsig_d, open(path_to_rsig_cluster_dict, 'wb'))
     
-# Make a mapping of certificates and cluster_ids
-try:
-    certificate_to_cluster_id_dict = pickle.load(open(path_to_certi_dict, 'rb'))
-except Exception as e: 
+    # Make a mapping of certificates and cluster_ids
     print("Calculating certificate dict....")
     certificate_to_cluster_id_dict = {}
     for _id in tqdm.tqdm(rsig_cluster_to_rsig_d):
@@ -42,6 +48,9 @@ except Exception as e:
         else:
             certificate_to_cluster_id_dict[C] = [_id]
     pickle.dump(certificate_to_cluster_id_dict, open(path_to_certi_dict, 'wb'))
+
+    print("Updating hash...")
+    open(action_dataset_hash_path, 'w').write(FileHash("md5").hash_file(action_dataset_csv_path))
 
 def add_immediate_neighbors(mol, indices, add_aromatic_cycles=True):
     def _add_neighbors(idx_list):
