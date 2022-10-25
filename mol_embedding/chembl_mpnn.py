@@ -76,10 +76,14 @@ mol_em_model = torch.load("models/MPNNMolEmbedder.pt", pickle_module=sys.modules
 atom_em_model = torch.load("models/MPNNAtomEmbedder.pt", pickle_module=sys.modules[__name__])
 
 def mol_to_embedding(mol):
+    if isinstance(mol, str):
+        mol = Chem.MolFromSmiles(mol)
     features = f.featurize([Chem.AddHs(mol)])[0]
     return mol_em_model([features])[0].cpu().detach().numpy()
 
 def atom_to_embedding(mol, idx):
+    if isinstance(mol, str):
+        mol = Chem.MolFromSmiles(mol)
     features = f.featurize([Chem.AddHs(mol)])[0]
     return atom_em_model([features], idx).cpu().detach().numpy()
 
