@@ -163,7 +163,7 @@ class ChemRlEnv(gym.Env):
     return (obs, info) if return_info else obs
 
 
-  def render(self): #TODO: update the previous render image 
+  def render(self): 
     '''Render the environment to the terminal or screen(as an image). Preferably do it only at the end of the episode.'''
     # Print on console
     if self.render_mode in ['ansi', "all"]: 
