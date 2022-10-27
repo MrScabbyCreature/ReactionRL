@@ -4,7 +4,6 @@ from torch import nn
 import dgl
 import pickle
 import sys
-from rdkit import Chem
 
 class Unpickler(pickle.Unpickler): # Pickle stores module info during torch.save so I have to allow it to search in a different module to torch.load
     def find_class(self, module, name):
@@ -78,15 +77,16 @@ atom_em_model = torch.load("models/MPNNAtomEmbedder.pt", pickle_module=sys.modul
 def mol_to_embedding(mol):
     if isinstance(mol, str):
         mol = Chem.MolFromSmiles(mol)
-    features = f.featurize([Chem.AddHs(mol)])[0]
+    features = f.featurize([mol])[0]
     return mol_em_model([features])[0].cpu().detach().numpy()
 
 def atom_to_embedding(mol, idx):
     if isinstance(mol, str):
         mol = Chem.MolFromSmiles(mol)
-    features = f.featurize([Chem.AddHs(mol)])[0]
+    features = f.featurize([mol])[0]
     return atom_em_model([features], idx).cpu().detach().numpy()
 
 if __name__ == "__main__":
+    from rdkit import Chem
     print(mol_to_embedding(Chem.MolFromSmiles("CCCC")).shape)
     print(atom_to_embedding(Chem.MolFromSmiles("CCCC"), 3).shape)
