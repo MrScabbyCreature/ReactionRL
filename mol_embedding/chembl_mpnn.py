@@ -5,6 +5,7 @@ import dgl
 import pickle
 import sys
 from mol_embedding.deepchem_featurizer import _featurize
+from rdkit import Chem
 
 dc.feat.MolGraphConvFeaturizer._featurize = _featurize
 
@@ -90,7 +91,6 @@ def atom_to_embedding(mol, idx):
     return atom_em_model([features], idx).cpu().detach().numpy()
 
 if __name__ == "__main__":
-    from rdkit import Chem
     print(mol_to_embedding(Chem.MolFromSmiles("CC")))
     print(atom_to_embedding(Chem.MolFromSmiles("CC"), 1))
     print(mol_to_embedding(Chem.MolFromSmiles("C")))
