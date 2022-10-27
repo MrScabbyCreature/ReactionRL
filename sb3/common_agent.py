@@ -5,6 +5,8 @@ from rewards.properties import logP
 from rdkit import Chem
 import argparse
 
+from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--timesteps", type=int, default=1000000, help="Timesteps to run for")
 parser.add_argument("--unique-name", type=str, default="", help="name for saving file")
@@ -16,14 +18,24 @@ env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(render_mode="all"))
 
 def run_training_or_inference(model, path, args):
     if args.mode == "train":
-        model.learn(total_timesteps=args.timesteps)
-        model.save(path)
+        eval_callback = EvalCallback(env, log_path=path+"/", eval_freq=20, ######################################################## CHANGE THIS EVAL_FREQ
+                             deterministic=True, render=False)
+
+        checkpoint_callback = CheckpointCallback(
+                            save_freq=args.timesteps//5,
+                            save_path=path + "/",
+                            name_prefix="checkpoint",
+                            save_replay_buffer=True,
+                            save_vecnormalize=True,
+                            )
+        model.learn(total_timesteps=args.timesteps, callback=[eval_callback, checkpoint_callback])
+        model.save(path+"/model")
 
     elif args.mode == "inference":
         mol_list = []
         if args.model_path_for_inference:
             path = args.model_path_for_inference
-        model = model.__class__.load(path)
+        model = model.__class__.load(path+"/model")
 
         for i in range(1):
             obs, info = env.reset(return_info=True)
