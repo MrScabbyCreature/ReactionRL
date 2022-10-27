@@ -4,6 +4,9 @@ from torch import nn
 import dgl
 import pickle
 import sys
+from mol_embedding.deepchem_featurizer import _featurize
+
+dc.feat.MolGraphConvFeaturizer._featurize = _featurize
 
 class Unpickler(pickle.Unpickler): # Pickle stores module info during torch.save so I have to allow it to search in a different module to torch.load
     def find_class(self, module, name):
@@ -88,5 +91,7 @@ def atom_to_embedding(mol, idx):
 
 if __name__ == "__main__":
     from rdkit import Chem
-    print(mol_to_embedding(Chem.MolFromSmiles("CCCC")).shape)
-    print(atom_to_embedding(Chem.MolFromSmiles("CCCC"), 3).shape)
+    print(mol_to_embedding(Chem.MolFromSmiles("CC")))
+    print(atom_to_embedding(Chem.MolFromSmiles("CC"), 1))
+    print(mol_to_embedding(Chem.MolFromSmiles("C")))
+    print(atom_to_embedding(Chem.MolFromSmiles("C"), 0))
