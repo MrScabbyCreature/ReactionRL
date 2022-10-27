@@ -13,8 +13,8 @@ from filehash import FileHash
 
 main_dir = os.getenv('MAIN_DIR')
 
-action_dataset_csv_path = "datasets/my_uspto/action_dataset-filtered.csv"
-action_dataset_hash_path = "datasets/my_uspto/action_dataset-filtered.hash"
+action_dataset_csv_path = os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv")
+action_dataset_hash_path = os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.hash")
 dataset = pd.read_csv(os.path.join(main_dir, action_dataset_csv_path), index_col=0)
 dataset = dataset[dataset["action_works"] & dataset["action_tested"]]
 path_to_rsig_cluster_dict = os.path.join(main_dir, "datasets/my_uspto/rsig_cluster_dict.pickle")
@@ -181,13 +181,13 @@ def get_applicable_rsig_clusters(in_mol):
 
 def mark_action_invalid(idx):
     # Load df
-    temp_df = pd.read_csv(os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv"), index_col=0)
+    temp_df = pd.read_csv(action_dataset_csv_path, index_col=0)
     
     # Mark action invalid
     temp_df.loc[idx, "action_works"] = False
     
     # Dump
-    temp_df.to_csv(os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv"))
+    temp_df.to_csv(action_dataset_csv_path)
 
 
 
