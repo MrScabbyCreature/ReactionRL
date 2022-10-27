@@ -1,12 +1,13 @@
 import gym
 from gym.spaces import Box
-import pickle
+import pickle, os
 import numpy as np
+from utils import MAIN_DIR
 
 class MoleculeEmbeddingsActionWrapper(gym.ActionWrapper):
     def __init__(self, env, ):
         super().__init__(env)
-        self.hash_to_embedding_map = pickle.load(open("datasets/my_uspto/action_embeddings.pickle", 'rb'))
+        self.hash_to_embedding_map = pickle.load(open(os.path.join(MAIN_DIR, "datasets/my_uspto/action_embeddings.pickle"), 'rb'))
         embedding_length = self.hash_to_embedding_map[list(self.hash_to_embedding_map.keys())[0]].shape[0]
         self.action_space = Box(low=self.low, high=self.high, shape=(embedding_length,), dtype=np.float32)
         
@@ -16,7 +17,7 @@ class MoleculeEmbeddingsActionWrapper(gym.ActionWrapper):
         Edit what is sent back to the environment.
         '''
         # Get the distances from the actions
-        hash_indices = self.applicable_actions.index
+        hash_indices = self.applicable_actions.index # self.applicable_actions is part of ChemRLEnv
         embedding_list = np.array([self.hash_to_embedding_map[hash] for hash in hash_indices])
 
         # Find the closest action

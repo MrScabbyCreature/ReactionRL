@@ -7,6 +7,9 @@ from rdkit.Chem import Draw
 import re
 from PIL import Image
 from rewards.properties import logP, qed, drd2, similarity
+import os
+
+MAIN_DIR = os.getenv('MAIN_DIR')
 
 def get_mol_certificate(mol):
     '''

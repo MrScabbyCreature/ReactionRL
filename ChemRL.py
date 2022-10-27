@@ -6,6 +6,7 @@ import gym
 from gym.spaces import Box
 import numpy as np
 import pandas as pd
+import os
 
 from rdkit import Chem
 from rdkit.Chem import AllChem, Draw
@@ -15,7 +16,7 @@ from mol_embedding.chembl_mpnn import mol_to_embedding, atom_to_embedding
 from action_wrapper import MoleculeEmbeddingsActionWrapper
 
 
-start_mols = pd.read_pickle("datasets/my_uspto/unique_start_mols.pickle")
+start_mols = pd.read_pickle(os.path.join(MAIN_DIR, "datasets/my_uspto/unique_start_mols.pickle"))
 MAX_EPISODE_LEN = 5
 
 class TrajectoryTracker:

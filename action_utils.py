@@ -11,13 +11,11 @@ import networkx as nx
 import os
 from filehash import FileHash
 
-main_dir = os.getenv('MAIN_DIR')
-
-action_dataset_csv_path = os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.csv")
-action_dataset_hash_path = os.path.join(main_dir, "datasets/my_uspto/action_dataset-filtered.hash")
-dataset = pd.read_csv(os.path.join(main_dir, action_dataset_csv_path), index_col=0)
+action_dataset_csv_path = os.path.join(MAIN_DIR, "datasets/my_uspto/action_dataset-filtered.csv")
+action_dataset_hash_path = os.path.join(MAIN_DIR, "datasets/my_uspto/action_dataset-filtered.hash")
+dataset = pd.read_csv(os.path.join(MAIN_DIR, action_dataset_csv_path), index_col=0)
 dataset = dataset[dataset["action_works"] & dataset["action_tested"]]
-path_to_rsig_cluster_dict = os.path.join(main_dir, "datasets/my_uspto/rsig_cluster_dict.pickle")
+path_to_rsig_cluster_dict = os.path.join(MAIN_DIR, "datasets/my_uspto/rsig_cluster_dict.pickle")
 path_to_certi_dict = os.path.join("datasets/my_uspto/certi_dict.pickle")
 
 # Get rsig cluster and certificate dictionaries
