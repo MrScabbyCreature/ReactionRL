@@ -185,7 +185,10 @@ def mark_action_invalid(idx):
     temp_df.loc[idx, "action_works"] = False
     
     # Dump
-    temp_df.to_csv(action_dataset_csv_path)
+    # I think there is a race condition happening because of which the file gets messed up when reading/writing from multiple processes simultaneously
+    # This should prevent by having different file names for reading and writing
+    temp_df.to_csv(action_dataset_csv_path+"2")
+    os.rename(action_dataset_csv_path+"2", action_dataset_csv_path) 
 
 
 
