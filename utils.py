@@ -22,7 +22,7 @@ def clean_hydrogen_in_smiles(smiles):
     Some clean-ups Idk how to do in molecule. So I do it in smiles after conversion.
     1. Remove extra hydrogens for even sized rings
     '''
-    return re.sub("\[([a-zA-Z])H[0-9]\]", r"\1", smiles)
+    return re.sub("\[([a-zA-Z])H[0-9]*\]", r"\1", smiles)
 
 
 def mol_with_atom_index( mol ):
