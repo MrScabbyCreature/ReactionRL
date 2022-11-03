@@ -3,7 +3,7 @@ from action_wrapper import MoleculeEmbeddingsActionWrapper
 
 from rewards.properties import logP
 from rdkit import Chem
-import argparse
+import argparse, os
 
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 
@@ -18,7 +18,7 @@ env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(render_mode="all"))
 
 def run_training_or_inference(model, path, args):
     if args.mode == "train":
-        eval_callback = EvalCallback(env, log_path=path+"/", eval_freq=20, ######################################################## CHANGE THIS EVAL_FREQ
+        eval_callback = EvalCallback(env, log_path=path+"/", eval_freq=1000,
                              deterministic=True, render=False)
 
         checkpoint_callback = CheckpointCallback(
@@ -35,7 +35,7 @@ def run_training_or_inference(model, path, args):
         mol_list = []
         if args.model_path_for_inference:
             path = args.model_path_for_inference
-        model = model.__class__.load(path+"/model")
+        model = model.__class__.load(os.path.join(path, "model"))
 
         for i in range(1):
             obs, info = env.reset(return_info=True)
