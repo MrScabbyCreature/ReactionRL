@@ -18,7 +18,7 @@ env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(render_mode="all"))
 
 def run_training_or_inference(model, path, args):
     if args.mode == "train":
-        eval_callback = EvalCallback(env, log_path=path+"/", eval_freq=1000,
+        eval_callback = EvalCallback(env, log_path=path+"/", eval_freq=1000, n_eval_episodes=100,
                              deterministic=True, render=False)
 
         checkpoint_callback = CheckpointCallback(
