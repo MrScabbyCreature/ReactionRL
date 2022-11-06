@@ -25,8 +25,6 @@ def run_training_or_inference(model, path, args):
                             save_freq=args.timesteps//5,
                             save_path=path + "/",
                             name_prefix="checkpoint",
-                            save_replay_buffer=True,
-                            save_vecnormalize=True,
                             )
         model.learn(total_timesteps=args.timesteps, callback=[eval_callback, checkpoint_callback])
         model.save(path+"/model")
