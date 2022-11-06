@@ -101,8 +101,6 @@ class ChemRlEnv(gym.Env):
     '''
     Execute one time step within the environment
     '''
-    # FIXME: action should be an embedding and used for reverse lookup. For now it is [rsub, rcen, rsig, rsig_cs_indices, psub, pcen, psig, psig_cs_indices]
-    # Note that the cs_indices are not actually part of action (and hence the embedding). They should be purely looked up (they are used for efficiency)
     try:
       next_state = apply_action(self.state, *action)
     except:
