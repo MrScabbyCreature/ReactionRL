@@ -19,6 +19,17 @@ from action_wrapper import MoleculeEmbeddingsActionWrapper
 start_mols = pd.read_pickle(os.path.join(MAIN_DIR, "datasets/my_uspto/unique_start_mols.pickle"))
 MAX_EPISODE_LEN = 5
 
+import time
+TIME_TRACKER = {
+      "apply_action": [],
+      "state_embedding": [],
+      "get_applicable_actions": [],
+}
+def display_track():
+  global TIME_TRACKER
+  for key in TIME_TRACKER:
+    print(f"{key} --> avg={np.mean(TIME_TRACKER[key])}, std={np.std(TIME_TRACKER[key])}")
+
 class TrajectoryTracker:
   def __init__(self) -> None:
     self.trajectory = []
@@ -105,7 +116,9 @@ class ChemRlEnv(gym.Env):
     Execute one time step within the environment
     '''
     try:
+      tt = time.time()
       next_state = apply_action(self.state, *action)
+      TIME_TRACKER["apply_action"].append(time.time() - tt)
     except:
       print("State:", Chem.MolToSmiles(self.state))
       print(action)
@@ -118,7 +131,9 @@ class ChemRlEnv(gym.Env):
 
     # Update current state
     self.state = next_state
+    tt = time.time()
     self.obs = self._state_embedding(self.state)
+    TIME_TRACKER["state_embedding"].append(time.time() - tt)
 
     # Check if done - Conditions: 
     # (1) Max episode length reached 
@@ -130,7 +145,9 @@ class ChemRlEnv(gym.Env):
     # (2) No actions applicable on next state 
     # Since we're doing that here, might as well save this info for next timestep
     # For exploration - we can return a random action from this. For exploitation, we can search for nearest neighbor from his list
+    tt = time.time()
     self.applicable_actions = get_applicable_actions(self.state)
+    TIME_TRACKER["get_applicable_actions"].append(time.time() - tt)
     if self.applicable_actions.shape[0] == 0:
       done = True
 
