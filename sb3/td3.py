@@ -6,7 +6,7 @@ import argparse
 args = parser.parse_args()
 
 # Run training/inference
-common_file_name = f"td3-{args.unique_name}-ts={args.timesteps}"
+common_file_name = f"td3-{args.unique_name}-ts={args.timesteps}-metric={args.reward_metric}"
 model_path = f"models/{common_file_name}"
 
 model = TD3("MlpPolicy", env, verbose=1, tensorboard_log=f"./tensorboard/{common_file_name}")

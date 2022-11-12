@@ -78,6 +78,9 @@ class ChemRlEnv(gym.Env):
     self.atom_embedding_fn = atom_embedding_fn
     self.reward_metric = reward_metric
 
+  def set_reward_metric(self, metric):
+    self.reward_metric = metric
+
   def _get_info(self, mol):
     return {"mol": mol}
 
