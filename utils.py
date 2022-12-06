@@ -6,8 +6,9 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import Draw
 import re
 from PIL import Image
-from rewards.properties import logP, qed, drd2, similarity
+from rewards.properties import logP, qed, drd2, similarity, SA
 import os
+import numpy as np
 
 MAIN_DIR = os.getenv('MAIN_DIR')
 
@@ -88,6 +89,15 @@ def calc_reward(state, action, next_state, metric='logp'):
         return qed(next_state) - qed(state)
     elif metric == "drd2":
         return drd2(next_state) - drd2(state)
+    elif metric == "SA":
+        def _transform(sascore):
+            '''
+            SA is between 1 and 10 where 1 is easily synthesizable.
+            log(11-SA) is between 0 and 1 where 1 is easily synthesizable (so fits as a reward metric).
+            Also, log(11-SA) has a steeper curve at 10 than at 1, so maximising the reward at 10 should be "more important" - According to some research SA between 1 and 4 is good, so don't care much when it reaches that point.
+            '''
+            return np.log10(11-sascore)
+        return _transform(SA(next_state)) - _transform(SA(state))
     else:
         raise f"Reward metric {metric} not found."
     

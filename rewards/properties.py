@@ -28,6 +28,7 @@ from rdkit.Chem import AllChem
 from rdkit.Chem import Descriptors
 import rdkit.Chem.QED as QED
 from rewards import drd2_scorer
+from rewards import sascorer
 
 def similarity(amol, bmol, sim_type):
     if amol is None or bmol is None:
@@ -58,3 +59,8 @@ def logP(mol):
     if mol is None:
         return 0.0
     return Descriptors.MolLogP(mol)
+
+def SA(mol):
+    if mol is None:
+        return 0.0
+    return sascorer.calculateScore(mol)

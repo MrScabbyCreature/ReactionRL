@@ -46,7 +46,10 @@ def get_score(smile):
     if clf_model is None:
         load_model()
 
-    mol = Chem.MolFromSmiles(smile)
+    if isinstance(smile, str):
+        mol = Chem.MolFromSmiles(smile)
+    else:
+        mol = smile
     if mol:
         fp = fingerprints_from_mol(mol)
         score = clf_model.predict_proba(fp)[:, 1]

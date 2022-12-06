@@ -1,7 +1,7 @@
 from ChemRL import ChemRlEnv
 from action_wrapper import MoleculeEmbeddingsActionWrapper
 
-from rewards.properties import logP
+from rewards.properties import *
 from rdkit import Chem
 import argparse, os
 
@@ -12,7 +12,7 @@ parser.add_argument("--timesteps", type=int, default=1000000, help="Timesteps to
 parser.add_argument("--unique-name", type=str, default="", help="name for saving file")
 parser.add_argument("--mode", type=str, choices=["train", "inference"], required=True, help="Train or inference")
 parser.add_argument("--model-path-for-inference", type=str, default=None, help="Model path for inference")
-parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2"], default="logp", help="Which metric to optimize for (reward)")
+parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2", "SA"], default="logp", help="Which metric to optimize for (reward)")
 
 env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(render_mode="all"))
 
@@ -52,4 +52,4 @@ def run_training_or_inference(model, path, args):
             print()
 
         for mol in mol_list:
-            print(Chem.MolToSmiles(mol), "---", logP(mol))
+            print(Chem.MolToSmiles(mol), f"\n--- {round(logP(mol), 4)}(logp), {round(qed(mol), 4)}(qed), {round(drd2(mol), 4)}(drd2), {round(SA(mol), 4)}(SA)\n")
