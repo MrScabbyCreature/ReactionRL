@@ -42,7 +42,7 @@ def run_training_or_inference(model, path, args):
             mol_list.append(info["mol"])
             done = False
             while not done:
-                action, _state = model.predict(obs, deterministic=True)
+                action, _state = model.predict(obs) #, deterministic=True) # <-- Using this returns the action with highest probability
                 obs, reward, done, info = env.step(action)
                 mol_list.append(info["mol"])
             env.render()
