@@ -51,6 +51,10 @@ except Exception as e:
     open(action_dataset_hash_path, 'w').write(FileHash("md5").hash_file(action_dataset_csv_path))
 
 def add_immediate_neighbors(mol, indices, add_aromatic_cycles=True):
+    '''
+    If add_aromatic_cycles is true, adds the whole aromatic cycle part of any new atom added.
+    Also, if add_aromatic_cycles is true, returns (indices, added_aromatic_cycle(bool))
+    '''
     def _add_neighbors(idx_list):
         atoms = list(map(lambda x: mol.GetAtomWithIdx(int(x)), idx_list))
         neighbors = []
@@ -65,19 +69,23 @@ def add_immediate_neighbors(mol, indices, add_aromatic_cycles=True):
         return indices
     
     # if added neighbor is aromatic, we have to check for more neighbors (if I do not add this condition, it does neighbor+1)
-    if add_aromatic_cycles and any(list(map(lambda idx: mol.GetAtomWithIdx(idx).GetIsAromatic(), list(set(new_indices) - set(indices))))):
-        indices = list(new_indices)
-        # if any aromtic atoms in neighbors, add them as well
-        repeat = True
-        while repeat:
-            repeat = False
-            for n in set(_add_neighbors(indices)) - set(indices):
-                if mol.GetAtomWithIdx(int(n)).GetIsAromatic():
-                    indices.append(n)
-                    repeat = True
+    added_aromatic_cycle = False
+    if add_aromatic_cycles:
+        if any(list(map(lambda idx: mol.GetAtomWithIdx(idx).GetIsAromatic(), list(set(new_indices) - set(indices))))):
+            indices = list(new_indices)
+            # if any aromtic atoms in neighbors, add them as well
+            repeat = True
+            while repeat:
+                repeat = False
+                for n in set(_add_neighbors(indices)) - set(indices):
+                    if mol.GetAtomWithIdx(int(n)).GetIsAromatic():
+                        indices.append(n)
+                        repeat = True
+                        added_aromatic_cycle = True
+        return np.unique(indices), added_aromatic_cycle
     else:
         indices = new_indices
-    
+        
     return np.unique(indices)
 
 def verify_action_applicability(mol, r_indices, cluster_id):
@@ -136,13 +144,7 @@ def get_applicable_rsig_clusters(in_mol):
         # Remove atom (not directly, otherwise the index resets)
         # First remove bonds to x
         in_mol_kekulized = Chem.Mol(in_mol)
-        try:
-            Chem.Kekulize(in_mol_kekulized, clearAromaticFlags=True)
-        except Exception as e:
-            print("#"*100)
-            print(Chem.MolToSmiles(in_mol))
-            display_mol(mol_with_atom_index(in_mol))
-            exit()
+        Chem.Kekulize(in_mol_kekulized, clearAromaticFlags=True)
         mw = Chem.RWMol(in_mol_kekulized)
         for n in mw.GetAtomWithIdx(x).GetNeighbors():
             mw.RemoveBond(x, n.GetIdx())
@@ -156,10 +158,14 @@ def get_applicable_rsig_clusters(in_mol):
         # For each fragment except the biggest, add x and extract sub-molecule and search
         for frag in sorted(mol_frags, key=lambda x: len(x))[:-1]:
             indices = [x] + list(frag)
+            aromatic_cycle_added = False
 
             for _ in range(2):
+                if aromatic_cycle_added:
+                    continue
                 # we add neighbors twice to rsub and then search for rsig
-                indices = add_immediate_neighbors(in_mol, indices)
+                indices, aromatic_cycle_added = add_immediate_neighbors(in_mol, indices)
+                
                 candidate = get_mol_from_index_list(in_mol_kekulized, indices)
                 try:
                     Chem.SanitizeMol(candidate)
@@ -172,8 +178,8 @@ def get_applicable_rsig_clusters(in_mol):
                 if cand_certi in certificate_to_cluster_id_dict:
                     # Verify rsig
                     for cluster_id in certificate_to_cluster_id_dict[cand_certi]:
-                        if verify_action_applicability(in_mol, indices, cluster_id):
-                            if cluster_id not in applicable_clusters:
+                        if cluster_id not in applicable_clusters:
+                            if verify_action_applicability(in_mol, indices, cluster_id):
                                 applicable_clusters.append(cluster_id)
     return applicable_clusters
 
