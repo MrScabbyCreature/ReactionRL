@@ -3,6 +3,8 @@ from gym.spaces import Box
 import pickle, os
 import numpy as np
 from utils import MAIN_DIR
+from timetracker import TIME_TRACKER
+import time
 
 class MoleculeEmbeddingsActionWrapper(gym.ActionWrapper):
     def __init__(self, env, ):
@@ -16,6 +18,7 @@ class MoleculeEmbeddingsActionWrapper(gym.ActionWrapper):
         '''
         Edit what is sent back to the environment.
         '''
+        tt = time.time()
         # Get the distances from the actions
         hash_indices = self.applicable_actions.index # self.applicable_actions is part of ChemRLEnv
         embedding_list = np.array([self.hash_to_embedding_map[hash] for hash in hash_indices])
@@ -23,6 +26,7 @@ class MoleculeEmbeddingsActionWrapper(gym.ActionWrapper):
         # Find the closest action
         distance = ((embedding_list-act)**2).sum(axis=1) # sqrt doesnt change argmin
         choice = distance.argmin()
+        TIME_TRACKER["action_wrapper"].append(time.time() - tt)
 
         return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
         return self.applicable_actions.loc[hash_indices[choice]][return_format]

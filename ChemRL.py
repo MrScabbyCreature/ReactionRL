@@ -14,21 +14,16 @@ from action_utils import *
 from utils import *
 from mol_embedding.chembl_mpnn import mol_to_embedding, atom_to_embedding
 from action_wrapper import MoleculeEmbeddingsActionWrapper
-
+from timetracker import TIME_TRACKER
+import time
 
 start_mols = pd.read_pickle(os.path.join(MAIN_DIR, "datasets/my_uspto/unique_start_mols.pickle"))
 MAX_EPISODE_LEN = 5
 
-import time
-TIME_TRACKER = {
-      "apply_action": [],
-      "state_embedding": [],
-      "get_applicable_actions": [],
-}
 def display_track():
   global TIME_TRACKER
   for key in TIME_TRACKER:
-    print(f"{key} --> avg={np.mean(TIME_TRACKER[key])}, std={np.std(TIME_TRACKER[key])}")
+    print(f"{key} --> avg={np.mean(TIME_TRACKER[key])}, std={np.std(TIME_TRACKER[key])}, n={len(TIME_TRACKER[key])}")
 
 class TrajectoryTracker:
   def __init__(self) -> None:
@@ -124,7 +119,10 @@ class ChemRlEnv(gym.Env):
       print(action)
       mark_action_invalid(action.name)
       return self.obs, 0, True, {}
+    
+    tt = time.time()
     rew = calc_reward(self.state, action, next_state, metric=self.reward_metric)
+    TIME_TRACKER["reward_calc"].append(time.time() - tt)
 
     # Update trajectory info
     self.trajectory.add_transition(self.state, action, next_state, rew)
@@ -156,10 +154,12 @@ class ChemRlEnv(gym.Env):
 
   def reset(self, seed=None, return_info=False, options=False):
     # Reset the state of the environment to an initial state
+    tt = time.time()
     super().reset(seed=seed)
     self.trajectory = TrajectoryTracker()
 
     # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
+    count = 0
     while True: # FIXME: Inefficient to do this in an infinite loop
       smiles = start_mols.sample(random_state=seed).iloc[0]
       mol = Chem.MolFromSmiles(smiles)
@@ -179,6 +179,7 @@ class ChemRlEnv(gym.Env):
     # Get state embedding to return as the observation
     obs = self._state_embedding(mol)
 
+    TIME_TRACKER["env_reset"].append(time.time() - tt)
     return (obs, info) if return_info else obs
 
 
