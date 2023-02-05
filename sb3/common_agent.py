@@ -13,12 +13,12 @@ parser.add_argument("--unique-name", type=str, default="", help="name for saving
 parser.add_argument("--mode", type=str, choices=["train", "inference"], required=True, help="Train or inference")
 parser.add_argument("--model-path-for-inference", type=str, default=None, help="Model path for inference")
 parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2", "SA"], default="logp", help="Which metric to optimize for (reward)")
+parser.add_argument("--goal-conditioned", action="store_true", help="goal")
+args = parser.parse_args()
 
-env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(render_mode="all"))
+env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(reward_metric=args.reward_metric, goal=args.goal_conditioned, render_mode="all"))
 
 def run_training_or_inference(model, path, args):
-    env.set_reward_metric(args.reward_metric)
-
     if args.mode == "train":
         eval_callback = EvalCallback(env, log_path=path+"/", eval_freq=1000, n_eval_episodes=100,
                              deterministic=True, render=False)

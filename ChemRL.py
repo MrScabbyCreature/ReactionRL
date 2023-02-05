@@ -50,7 +50,7 @@ class ChemRlEnv(gym.Env):
   """Custom Environment that follows gym interface"""
   metadata = {'render.modes': ['human', 'ansi', "all"], "reward.metrics": ["logp", "qed", "drd2"]}
 
-  def __init__(self, low=-1, high=1, mol_embedding_fn=mol_to_embedding, atom_embedding_fn=atom_to_embedding, reward_metric="logp", render_mode="ansi"):
+  def __init__(self, low=-1, high=1, mol_embedding_fn=mol_to_embedding, atom_embedding_fn=atom_to_embedding, reward_metric="logp", goal=False, render_mode="ansi"):
     '''
     low = min value of 
     K = size of molecule embedding
@@ -60,8 +60,9 @@ class ChemRlEnv(gym.Env):
     atom_embedding_fn: function
       Input: Mol, atom_idx
       Output: Some fixed size vector representation of atom
-    reward_metric = metric to use as reward # TODO: Allow passing function / hyperparameters for linear combination of multiple properties
+    reward_metric: metric to use as reward # TODO: Allow passing function / hyperparameters for linear combination of multiple properties
       Currently supported: "logp", "qed", "drd2"
+    goal(bool): Whether to do goal conditioned RL
     '''
     super(ChemRlEnv, self).__init__()
     self.render_mode = render_mode
