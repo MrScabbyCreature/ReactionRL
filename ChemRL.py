@@ -73,17 +73,18 @@ class ChemRlEnv(gym.Env):
     random_mol = start_mols[0]
     mol_embedding_len = mol_embedding_fn(random_mol).shape[-1]
     atom_embedding_len = atom_embedding_fn(random_mol, 0).shape[-1]
-    self.observation_space = Box(low=low, high=high, shape=(mol_embedding_len,), dtype=np.float32)
+    self.observation_space = Box(low=low, high=high, shape=(mol_embedding_len*(goal+1),), dtype=np.float32)
     self.action_space = Box(low=low, high=high, shape=(4*mol_embedding_len+2*atom_embedding_len,), dtype=np.float32) # TODO: Make default action space some tuple/dict of smile strings and centre(ints). The embedding space will be implemented through wrappers
     self.mol_embedding_fn = mol_embedding_fn
     self.atom_embedding_fn = atom_embedding_fn
     self.reward_metric = reward_metric
+    self.goal = goal
 
   def set_reward_metric(self, metric):
     self.reward_metric = metric
 
-  def _get_info(self, mol):
-    return {"mol": mol}
+  def _get_info(self, mol, target=None):
+    return {"mol": mol, "target": target}
 
   def _state_embedding(self, mol):
     return self.mol_embedding_fn(mol)
@@ -112,7 +113,7 @@ class ChemRlEnv(gym.Env):
       print(action)
       mark_action_invalid(action.name)
       return self.obs, 0, True, {}
-    rew = calc_reward(self.state, action, next_state, metric=self.reward_metric)
+    rew = calc_reward(self.state, action, next_state, target=self.target, metric=self.reward_metric)
 
     # Update trajectory info
     self.trajectory.add_transition(self.state, action, next_state, rew)
@@ -134,6 +135,9 @@ class ChemRlEnv(gym.Env):
     self.applicable_actions = get_applicable_actions(self.state)
     if self.applicable_actions.shape[0] == 0:
       done = True
+
+    if self.goal:
+      self.obs = np.append(self.obs, self._state_embedding(self.target))
 
     return self.obs, rew, done, self._get_info(self.state)
 
@@ -157,11 +161,34 @@ class ChemRlEnv(gym.Env):
 
     self.state = mol
     
-    # info
-    info = self._get_info(mol)
-
     # Get state embedding to return as the observation
     obs = self._state_embedding(mol)
+
+    # If goal conditioned RL, then construct a target and add to state observation
+    self.target = None
+    if self.goal:
+      self.target = mol
+      for _ in range(MAX_EPISODE_LEN):
+        # get a random action
+        actions = get_applicable_actions(self.target)
+        if actions.shape[0] == 0:
+          break
+        action = actions.sample().iloc[0]
+
+        # apply 
+        try:
+          self.target = apply_action(self.target, *action)
+        except:
+          print("State:", Chem.MolToSmiles(self.target))
+          print(action)
+          mark_action_invalid(action.name)
+          return obs, self._get_info(mol)
+
+      # Concat to self.obs
+      obs = np.append(obs, self._state_embedding(self.target))
+
+    # info
+    info = self._get_info(mol, self.target)
 
     return (obs, info) if return_info else obs
 

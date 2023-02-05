@@ -12,9 +12,13 @@ parser.add_argument("--timesteps", type=int, default=1000000, help="Timesteps to
 parser.add_argument("--unique-name", type=str, default="", help="name for saving file")
 parser.add_argument("--mode", type=str, choices=["train", "inference"], required=True, help="Train or inference")
 parser.add_argument("--model-path-for-inference", type=str, default=None, help="Model path for inference")
-parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2", "SA"], default="logp", help="Which metric to optimize for (reward)")
+parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2", "SA", "sim"], default="logp", help="Which metric to optimize for (reward)")
 parser.add_argument("--goal-conditioned", action="store_true", help="goal")
 args = parser.parse_args()
+
+# Check for cannot give "sim" (similarity) as a reward without GCRL
+if args.reward_metric == "sim":
+    assert args.goal_conditioned, "Cannot give a similarity reward without a target (GCRL)"
 
 env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(reward_metric=args.reward_metric, goal=args.goal_conditioned, render_mode="all"))
 

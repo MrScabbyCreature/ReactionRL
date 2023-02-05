@@ -79,7 +79,7 @@ def GetAtomWithAtomMapNum(mol, num):
             return atom
     return None
 
-def calc_reward(state, action, next_state, metric='logp'):
+def calc_reward(state, action, next_state, target=None, metric='logp'):
     '''
     Get the reward based on some Chemical metric (logp, QED, DRD2)
     '''
@@ -98,6 +98,9 @@ def calc_reward(state, action, next_state, metric='logp'):
             '''
             return np.log10(11-sascore)
         return _transform(SA(next_state)) - _transform(SA(state))
+    elif metric == "sim":
+        assert target is not None, "Need a target for similirity reward"
+        return similarity(next_state, target) - similarity(state, target)
     else:
         raise f"Reward metric {metric} not found."
     
