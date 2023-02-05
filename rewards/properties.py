@@ -30,7 +30,7 @@ import rdkit.Chem.QED as QED
 from rewards import drd2_scorer
 from rewards import sascorer
 
-def similarity(amol, bmol, sim_type):
+def similarity(amol, bmol, sim_type=None):
     if amol is None or bmol is None:
         return 0.0
 
