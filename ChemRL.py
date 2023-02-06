@@ -182,7 +182,6 @@ class ChemRlEnv(gym.Env):
           print("State:", Chem.MolToSmiles(self.target))
           print(action)
           mark_action_invalid(action.name)
-          return obs, self._get_info(mol)
 
       # Concat to self.obs
       obs = np.append(obs, self._state_embedding(self.target))
