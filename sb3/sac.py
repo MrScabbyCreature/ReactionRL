@@ -3,7 +3,7 @@ from sb3.common_agent import *
 import argparse
 
 # Run training/inference
-common_file_name = f"sac-{args.unique_name}-lr={args.lr}-ts={args.timesteps}-metric={args.reward_metric}"
+common_file_name = f"sac-{args.unique_name}-ts={args.timesteps}-metric={args.reward_metric}"
 model_path = f"models/{common_file_name}"
 
 model = SAC("MlpPolicy", env, verbose=1, learning_rate=args.lr, tensorboard_log=f"./tensorboard/{common_file_name}")
