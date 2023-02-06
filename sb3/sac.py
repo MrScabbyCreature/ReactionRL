@@ -6,5 +6,5 @@ import argparse
 common_file_name = f"sac-{args.unique_name}-ts={args.timesteps}-metric={args.reward_metric}"
 model_path = f"models/{common_file_name}"
 
-model = SAC("MlpPolicy", env, verbose=1, learning_rate=args.lr, tensorboard_log=f"./tensorboard/{common_file_name}")
+model = SAC("MlpPolicy", env, verbose=1, tensorboard_log=f"./tensorboard/{common_file_name}")
 run_training_or_inference(model, model_path, args)
