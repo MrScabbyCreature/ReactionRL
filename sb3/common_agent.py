@@ -14,6 +14,8 @@ parser.add_argument("--mode", type=str, choices=["train", "inference"], required
 parser.add_argument("--model-path-for-inference", type=str, default=None, help="Model path for inference")
 parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2", "SA", "sim"], default="logp", help="Which metric to optimize for (reward)")
 parser.add_argument("--goal-conditioned", action="store_true", help="goal")
+parser.add_argument("--source-mol", type=str, default=None, help="Source molecule")
+parser.add_argument("--target-mol", type=str, default=None, help="Target molecule")
 args = parser.parse_args()
 
 # Check for cannot give "sim" (similarity) as a reward without GCRL
@@ -41,8 +43,13 @@ def run_training_or_inference(model, path, args):
             path = args.model_path_for_inference
         model = model.__class__.load(os.path.join(path, "model"))
 
+        # Send source and target mols if provided
+        options = {}
+        if args.source_mol:
+            options.update({"source": args.source_mol})
+            options.update({"target": args.target_mol})
         for i in range(1):
-            obs, info = env.reset(return_info=True)
+            obs, info = env.reset(return_info=True, options=options)
             mol_list.append(info["mol"])
             done = False
             while not done:

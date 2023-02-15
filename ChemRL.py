@@ -142,22 +142,27 @@ class ChemRlEnv(gym.Env):
     return self.obs, rew, done, self._get_info(self.state)
 
 
-  def reset(self, seed=None, return_info=False, options=False):
+  def reset(self, seed=None, return_info=False, options={}):
     # Reset the state of the environment to an initial state
     super().reset(seed=seed)
     self.trajectory = TrajectoryTracker()
 
-    # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
-    while True: # FIXME: Inefficient to do this in an infinite loop
-      smiles = start_mols.sample(random_state=seed).iloc[0]
+    if "source" in options:
+      smiles = options["source"]
       mol = Chem.MolFromSmiles(smiles)
       self.applicable_actions = get_applicable_actions(mol)
-      if self.applicable_actions.shape[0] == 0:
-        if isinstance(seed, int):
-          seed+=1
-        continue
-      else:
-        break
+    else:
+      # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
+      while True: # FIXME: Inefficient to do this in an infinite loop
+        smiles = start_mols.sample(random_state=seed).iloc[0]
+        mol = Chem.MolFromSmiles(smiles)
+        self.applicable_actions = get_applicable_actions(mol)
+        if self.applicable_actions.shape[0] == 0:
+          if isinstance(seed, int):
+            seed+=1
+          continue
+        else:
+          break
 
     self.state = mol
     
@@ -166,7 +171,9 @@ class ChemRlEnv(gym.Env):
 
     # If goal conditioned RL, then construct a target and add to state observation
     self.target = None
-    if self.goal:
+    if "target" in options:
+      self.target = Chem.MolFromSmiles(options["target"])
+    elif self.goal:
       self.target = mol
       for _ in range(MAX_EPISODE_LEN):
         # get a random action
@@ -183,6 +190,7 @@ class ChemRlEnv(gym.Env):
           print(action)
           mark_action_invalid(action.name)
 
+    if self.target:
       # Concat to self.obs
       obs = np.append(obs, self._state_embedding(self.target))
 
@@ -205,6 +213,13 @@ class ChemRlEnv(gym.Env):
     if self.render_mode in ["human", "all"]:
       reactions = self.trajectory.get_trajectory_as_reactions()
       reaction_images = [Draw.ReactionToImage(rxn) for rxn in reactions]
+
+      cr = 0 # cumulative reward
+      for (s, a, ns, r), im in zip(self.trajectory.iter_trajectory(), reaction_images): # imprint reward info
+        cr += r
+        d1 = ImageDraw.Draw(im)
+        d1.text((im.width-100, im.height-20), f"r = {round(r, 4)}", fill=(0, 0, 0))
+        d1.text((im.width-100, im.height-10), f"cr = {round(cr, 4)}", fill=(0, 0, 0))
 
       im = get_concat_v_multi_resize(reaction_images)
       if self.goal:

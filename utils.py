@@ -5,7 +5,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import Draw
 import re
-from PIL import Image
+from PIL import Image, ImageDraw
 from rewards.properties import logP, qed, drd2, similarity, SA
 import os
 import numpy as np
