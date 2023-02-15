@@ -56,4 +56,5 @@ def run_training_or_inference(model, path, args):
             print()
 
         for mol in mol_list:
-            print(Chem.MolToSmiles(mol), f"\n--- {round(logP(mol), 4)}(logp), {round(qed(mol), 4)}(qed), {round(drd2(mol), 4)}(drd2), {round(SA(mol), 4)}(SA)\n")
+            print(Chem.MolToSmiles(mol), f"\n--- {round(logP(mol), 4)}(logp), {round(qed(mol), 4)}(qed), {round(drd2(mol), 4)}(drd2), {round(SA(mol), 4)}(SA)" + \
+                f", {round(similarity(mol, env.target), 4)}(sim)" if args.goal_conditioned else ""  + "\n")

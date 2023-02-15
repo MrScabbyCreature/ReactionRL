@@ -196,6 +196,8 @@ class ChemRlEnv(gym.Env):
     '''Render the environment to the terminal or screen(as an image). Preferably do it only at the end of the episode.'''
     # Print on console
     if self.render_mode in ['ansi', "all"]: 
+      if self.goal:
+        print(f"{bcolors.OKCYAN}Target: {Chem.MolToSmiles(self.target)}{bcolors.ENDC}")
       for s, a, ns, r in self.trajectory.iter_trajectory():
         print(f"{Chem.MolToSmiles(s)} --- {a[2]} || {a[6]} --->{Chem.MolToSmiles(ns)} (r={r})\n")
 
@@ -205,7 +207,10 @@ class ChemRlEnv(gym.Env):
       reaction_images = [Draw.ReactionToImage(rxn) for rxn in reactions]
 
       im = get_concat_v_multi_resize(reaction_images)
+      if self.goal:
+        im = get_concat_h_blank(get_concat_v_blank(Image.open("images/goal.png"), Draw.MolToImage(self.target)), im) 
       im.show()
+
 
   def close(self):
     pass

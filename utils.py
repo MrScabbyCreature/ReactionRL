@@ -12,6 +12,17 @@ import numpy as np
 
 MAIN_DIR = os.getenv('MAIN_DIR')
 
+class bcolors: # For printing colored text
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 def get_mol_certificate(mol):
     '''
     Takes a Chem.Mol and returns Morgan fingerprint in base64
@@ -119,4 +130,16 @@ def get_concat_v_multi_resize(im_list, resample=Image.BICUBIC):
     for im in im_list_resize:
         dst.paste(im, (0, pos_y))
         pos_y += im.height
+    return dst
+
+def get_concat_h_blank(im1, im2, color=(255, 255, 255)):
+    dst = Image.new('RGB', (im1.width + im2.width, max(im1.height, im2.height)), color)
+    dst.paste(im1, (0, im2.height//2 - im1.height//2))
+    dst.paste(im2, (im1.width, 0))
+    return dst
+
+def get_concat_v_blank(im1, im2, color=(255, 255, 255)):
+    dst = Image.new('RGB', (max(im1.width, im2.width), im1.height + im2.height), color)
+    dst.paste(im1, (im2.width//2 - im1.width//2, 0))
+    dst.paste(im2, (0, im1.height))
     return dst
