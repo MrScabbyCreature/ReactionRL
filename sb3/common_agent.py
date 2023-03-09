@@ -34,6 +34,7 @@ def run_training_or_inference(model, path, args):
                             save_path=path + "/",
                             name_prefix="checkpoint",
                             )
+        env.set_replay_buffer(model.replay_buffer)
         model.learn(total_timesteps=args.timesteps, callback=[eval_callback, checkpoint_callback])
         model.save(path+"/model")
 
