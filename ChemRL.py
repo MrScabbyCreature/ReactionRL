@@ -79,6 +79,10 @@ class ChemRlEnv(gym.Env):
     self.atom_embedding_fn = atom_embedding_fn
     self.reward_metric = reward_metric
     self.goal = goal
+    self.replay_buffer = None
+
+  def set_replay_buffer(self, replay_buffer):
+    self.replay_buffer = replay_buffer
 
   def set_reward_metric(self, metric):
     self.reward_metric = metric
@@ -142,22 +146,28 @@ class ChemRlEnv(gym.Env):
     return self.obs, rew, done, self._get_info(self.state)
 
 
-  def reset(self, seed=None, return_info=False, options=False):
+  def reset(self, seed=None, return_info=False, options={}):
+    global MAX_EPISODE_LEN
     # Reset the state of the environment to an initial state
     super().reset(seed=seed)
     self.trajectory = TrajectoryTracker()
 
-    # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
-    while True: # FIXME: Inefficient to do this in an infinite loop
-      smiles = start_mols.sample(random_state=seed).iloc[0]
+    if "source" in options:
+      smiles = options["source"]
       mol = Chem.MolFromSmiles(smiles)
       self.applicable_actions = get_applicable_actions(mol)
-      if self.applicable_actions.shape[0] == 0:
-        if isinstance(seed, int):
-          seed+=1
-        continue
-      else:
-        break
+    else:
+      # Get a random mol to start with - it should have some applicable action (otherwise, there's no point)
+      while True: # FIXME: Inefficient to do this in an infinite loop
+        smiles = start_mols.sample(random_state=seed).iloc[0]
+        mol = Chem.MolFromSmiles(smiles)
+        self.applicable_actions = get_applicable_actions(mol)
+        if self.applicable_actions.shape[0] == 0:
+          if isinstance(seed, int):
+            seed+=1
+          continue
+        else:
+          break
 
     self.state = mol
     
@@ -166,8 +176,12 @@ class ChemRlEnv(gym.Env):
 
     # If goal conditioned RL, then construct a target and add to state observation
     self.target = None
-    if self.goal:
+    if "target" in options:
+      self.target = Chem.MolFromSmiles(options["target"])
+    elif self.goal:
+      listy_for_replay_buffer = []
       self.target = mol
+      MAX_EPISODE_LEN = 1 # np.random.randint(1, 4)
       for _ in range(MAX_EPISODE_LEN):
         # get a random action
         actions = get_applicable_actions(self.target)
@@ -177,12 +191,30 @@ class ChemRlEnv(gym.Env):
 
         # apply 
         try:
+          listy_for_replay_buffer.append({"state": self.target, "action": action})
           self.target = apply_action(self.target, *action)
+          listy_for_replay_buffer[-1]["next_state"] = self.target
         except:
+          listy_for_replay_buffer.pop(-1)
           print("State:", Chem.MolToSmiles(self.target))
           print(action)
           mark_action_invalid(action.name)
+        
+      
+      # If replay_buffer, add transition to it, for (hopefully) better training
+      if self.replay_buffer is not None:
+        # print("POSPOSPOS-1", self.replay_buffer.pos)
+        for i, item in enumerate(listy_for_replay_buffer):
+          self.replay_buffer.add(np.append(self._state_embedding(item["state"]), self._state_embedding(self.target)), 
+                                 np.append(self._state_embedding(item["next_state"]), self._state_embedding(self.target)), 
+                                 self._action_embedding(action), 
+                                 calc_reward(item["state"], item["action"], item["next_state"], target=self.target, metric=self.reward_metric), 
+                                 True if i == len(listy_for_replay_buffer)-1 else False,
+                                 [self._get_info(item["state"])])
+        # print("POSPOSPOS-2", self.replay_buffer.pos)
+          
 
+    if self.target:
       # Concat to self.obs
       obs = np.append(obs, self._state_embedding(self.target))
 
@@ -196,6 +228,8 @@ class ChemRlEnv(gym.Env):
     '''Render the environment to the terminal or screen(as an image). Preferably do it only at the end of the episode.'''
     # Print on console
     if self.render_mode in ['ansi', "all"]: 
+      if self.goal:
+        print(f"{bcolors.OKCYAN}Target: {Chem.MolToSmiles(self.target)}{bcolors.ENDC}")
       for s, a, ns, r in self.trajectory.iter_trajectory():
         print(f"{Chem.MolToSmiles(s)} --- {a[2]} || {a[6]} --->{Chem.MolToSmiles(ns)} (r={r})\n")
 
@@ -204,8 +238,20 @@ class ChemRlEnv(gym.Env):
       reactions = self.trajectory.get_trajectory_as_reactions()
       reaction_images = [Draw.ReactionToImage(rxn) for rxn in reactions]
 
+      cr = 0 # cumulative reward
+      for (s, a, ns, r), im in zip(self.trajectory.iter_trajectory(), reaction_images): # imprint reward info
+        cr += r
+        d1 = ImageDraw.Draw(im)
+        if self.goal:
+          d1.text((im.width-100, im.height-30), f"sim(ns) = {round(similarity(ns, self.target), 4)}", fill=(0, 0, 0))
+        d1.text((im.width-100, im.height-20), f"r = {round(r, 4)}", fill=(0, 0, 0))
+        d1.text((im.width-100, im.height-10), f"cr = {round(cr, 4)}", fill=(0, 0, 0))
+
       im = get_concat_v_multi_resize(reaction_images)
+      if self.goal:
+        im = get_concat_h_blank(get_concat_v_blank(Image.open("images/goal.png"), Draw.MolToImage(self.target)), im) 
       im.show()
+
 
   def close(self):
     pass
