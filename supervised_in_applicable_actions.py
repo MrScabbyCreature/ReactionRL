@@ -128,8 +128,8 @@ def get_pred_index(args):
 
 if __name__ == "__main__":
     # Load dataset for training the NN 
-    dataset = pd.read_csv("datasets/my_uspto/supervised_zinc_gin/dataset.csv", index_col=0)
-    dataset.shape
+    main_df = pd.read_csv("datasets/my_uspto/supervised_zinc_gin/dataset.csv", index_col=0)
+    main_df.shape
 
     # Load action dataset
     action_dataset = pd.read_csv("datasets/my_uspto/action_dataset-filtered.csv", index_col=0)
@@ -154,10 +154,10 @@ if __name__ == "__main__":
         ##############################
         # Create train and test data #
         ##############################
-        X = np.stack(dataset.apply(lambda x: np.concatenate([zinc_gin_mol_embedding(x["reactant"]), zinc_gin_mol_embedding(x["product"])]), axis=1).tolist())
+        X = np.stack(main_df.apply(lambda x: np.concatenate([zinc_gin_mol_embedding(x["reactant"]), zinc_gin_mol_embedding(x["product"])]), axis=1).tolist())
         print("X shape:", X.shape)
 
-        Y = np.stack([zinc_gin_action_embedding(dataset.iloc[i][dataset.columns[1:-1]]) for i in range(dataset.shape[0])])
+        Y = np.stack([zinc_gin_action_embedding(main_df.iloc[i][main_df.columns[1:-1]]) for i in range(main_df.shape[0])])
         print("Y shape:", Y.shape)
 
         # Target = target - source (gives better results)
@@ -197,11 +197,11 @@ if __name__ == "__main__":
             args = []
             # collect args
             for i in range(10000, 13000):
-                applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(dataset["reaction"].iloc[0]))
-                assert dataset.iloc[i].name in applicable_actions_df.index, f"The chosen action is not in applicable actions??? i = {i}"
+                applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(main_df["reactant"].iloc[0]))
+                assert main_df.iloc[i].name in applicable_actions_df.index, f"The chosen action is not in applicable actions??? i = {i}"
                 args.append(
                         (
-                            (applicable_actions_df.index == dataset.iloc[i].name).argmax(), 
+                            (applicable_actions_df.index == main_df.iloc[i].name).argmax(), 
                             ((action_embeddings[action_dataset.index.isin(applicable_actions_df.index)] - pred[i])[:, idx:idx+emb_len]**2).sum(axis=1)
                     )
                 )
