@@ -197,7 +197,7 @@ if __name__ == "__main__":
             args = []
             # collect args
             for i in range(10000, 13000):
-                applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(main_df["reactant"].iloc[0]))
+                applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(main_df["reactant"].iloc[i]))
                 assert main_df.iloc[i].name in applicable_actions_df.index, f"The chosen action is not in applicable actions??? i = {i}"
                 args.append(
                         (
