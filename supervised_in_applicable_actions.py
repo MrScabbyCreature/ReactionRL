@@ -82,33 +82,33 @@ def train(X, Y, num_hidden=1, hidden_size=50, lr=1e-2, batch_size=64, epochs=100
     return model
 
 
-def clintox_gin_mol_embedding(smiles):
+def zinc_gin_mol_embedding(smiles):
     try:
         mol = data.Molecule.from_smiles(smiles, atom_feature="pretrain", bond_feature="pretrain")
-        emb = clintox_gin(mol, mol.node_feature.float())["graph_feature"]
+        emb = zinc_gin(mol, mol.node_feature.float())["graph_feature"]
     except Exception as e:
         mol = data.Molecule.from_smiles(smiles, atom_feature="pretrain", bond_feature="pretrain", with_hydrogen=True)
-        emb = clintox_gin(mol, mol.node_feature.float())["graph_feature"]
+        emb = zinc_gin(mol, mol.node_feature.float())["graph_feature"]
     return emb.detach().cpu()[0]
 
-def clintox_gin_atom_embedding(smiles, idx):
+def zinc_gin_atom_embedding(smiles, idx):
     try:
         mol = data.Molecule.from_smiles(smiles, atom_feature="pretrain", bond_feature="pretrain")
-        emb = clintox_gin(mol, mol.node_feature.float())["node_feature"][idx]
+        emb = zinc_gin(mol, mol.node_feature.float())["node_feature"][idx]
     except Exception as e:
         mol = data.Molecule.from_smiles(smiles, atom_feature="pretrain", bond_feature="pretrain", with_hydrogen=True)
-        emb = clintox_gin(mol, mol.node_feature.float())["node_feature"][idx]
+        emb = zinc_gin(mol, mol.node_feature.float())["node_feature"][idx]
     return emb.detach().cpu()
 
-def clinton_gin_action_embedding(action):
+def zinc_gin_action_embedding(action):
     rsub, rcen, rsig, _, psub, pcen, psig, __ = action
     embedding = np.concatenate([
-#                         clintox_gin_mol_embedding(rsub), 
-                        clintox_gin_atom_embedding(rsig, rcen) / 5, 
-                        clintox_gin_mol_embedding(rsig), 
-#                         clintox_gin_mol_embedding(psub), 
-                        clintox_gin_atom_embedding(psig, pcen) / 5, 
-                        clintox_gin_mol_embedding(psig)
+#                         zinc_gin_mol_embedding(rsub), 
+                        zinc_gin_atom_embedding(rsig, rcen) / 5, 
+                        zinc_gin_mol_embedding(rsig), 
+#                         zinc_gin_mol_embedding(psub), 
+                        zinc_gin_atom_embedding(psig, pcen) / 5, 
+                        zinc_gin_mol_embedding(psig)
                     ])
     return embedding
 
@@ -131,7 +131,17 @@ if __name__ == "__main__":
     dataset = pd.read_csv("datasets/my_uspto/supervised_zinc_gin/dataset.csv", index_col=0)
     dataset.shape
 
+    # Load action dataset
+    action_dataset = pd.read_csv("datasets/my_uspto/action_dataset-filtered.csv", index_col=0)
+    action_dataset = action_dataset.loc[action_dataset["reactant_works"] & action_dataset["reactant_tested"] & action_dataset["action_tested"] & action_dataset["action_works"]]
+    action_dataset.shape
+    action_dataset = action_dataset[["rsub", "rcen", "rsig", "rbond", "psub", "pcen", "psig", "pbond"]]
+    action_dataset.shape
+
+    # Get model list for zinc dataset
     model_list = glob.glob("models/zinc*")
+
+    # Main loop - It does it all~~
     for model_path in model_list:
         print("#"*100)
 
@@ -139,25 +149,25 @@ if __name__ == "__main__":
         # Load a model #
         ################
         print(f"Loading model \033[93m{model_path}\033[0m")
-        clintox_gin = torch.load(model_path)
+        zinc_gin = torch.load(model_path)
 
         ##############################
         # Create train and test data #
         ##############################
-        X = np.stack(dataset.apply(lambda x: np.concatenate([clintox_gin_mol_embedding(x["reactant"]), clintox_gin_mol_embedding(x["product"])]), axis=1).tolist())
-        emb_len = X.shape[1]//2
-        X[:, :emb_len] -= X[:, emb_len:] # This makes predictions better (target = target - source)
+        X = np.stack(dataset.apply(lambda x: np.concatenate([zinc_gin_mol_embedding(x["reactant"]), zinc_gin_mol_embedding(x["product"])]), axis=1).tolist())
         print("X shape:", X.shape)
 
-
-        Y = []
-        for i in range(dataset.shape[0]):
-            Y.append(clinton_gin_action_embedding(dataset.iloc[i][dataset.columns[1:-1]]))
-        Y = np.stack(Y)
+        Y = np.stack([zinc_gin_action_embedding(dataset.iloc[i][dataset.columns[1:-1]]) for i in range(dataset.shape[0])])
         print("Y shape:", Y.shape)
 
+        # Target = target - source (gives better results)
+        emb_len = X.shape[1]//2
+        X[:, :emb_len] -= X[:, emb_len:] # This makes predictions better (target = target - source)
+
+        #################
+        # Train a model #
+        #################
         model = train(X, Y, hidden_size=500, num_hidden=2, lr=1e-3, epochs=20)
-        # print(model)
 
         ################################################
         # get prediction socres for each sub-embedding #
@@ -172,18 +182,10 @@ if __name__ == "__main__":
             print((((pred[:, l[i]:l[i+1]] - true[:, l[i]:l[i+1]]))**2).sum()/3000 / (l[i+1]-l[i]))
         print()
 
-        #######################
-        # Load action dataset #
-        #######################
-        action_dataset = pd.read_csv("datasets/my_uspto/action_dataset-filtered.csv", index_col=0)
-        action_dataset = action_dataset.loc[action_dataset["reactant_works"] & action_dataset["reactant_tested"] & action_dataset["action_tested"] & action_dataset["action_works"]]
-        action_dataset.shape
-        action_dataset = action_dataset[["rsub", "rcen", "rsig", "rbond", "psub", "pcen", "psig", "pbond"]]
-        action_dataset.shape
-
-        action_embeddings = np.load(model_path.replace("models", "datasets/my_uspto/supervised_zinc_gin").replace("pth", "npy"))
-        action_embeddings.shape
-
+        #############################
+        # Compute Action embeddings #
+        #############################
+        action_embeddings = np.stack([zinc_gin_action_embedding(action_dataset.iloc[i])] for i in range(action_dataset.shape[0]))
 
         #################
         # Print results #
@@ -196,7 +198,7 @@ if __name__ == "__main__":
             # collect args
             for i in range(10000, 13000):
                 applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(dataset["reaction"].iloc[0]))
-                assert applicable_actions_df.index == dataset.iloc[i].name, f"The chosen action is not in applicable actions??? i = {i}"
+                assert dataset.iloc[i].name in applicable_actions_df.index, f"The chosen action is not in applicable actions??? i = {i}"
                 args.append(
                         (
                             (applicable_actions_df.index == dataset.iloc[i].name).argmax(), 
