@@ -176,7 +176,6 @@ if __name__ == "__main__":
         true = Y[10000:]
 
         l = emb_len*np.arange(5)
-
         print("Sub-embedding losses:")
         for i in range(len(l)-1):
             print((((pred[:, l[i]:l[i+1]] - true[:, l[i]:l[i+1]]))**2).sum()/3000 / (l[i+1]-l[i]))
@@ -185,7 +184,7 @@ if __name__ == "__main__":
         #############################
         # Compute Action embeddings #
         #############################
-        action_embeddings = np.stack([zinc_gin_action_embedding(action_dataset.iloc[i])] for i in range(action_dataset.shape[0]))
+        action_embeddings = np.stack([zinc_gin_action_embedding(action_dataset.iloc[i]) for i in range(action_dataset.shape[0])])
 
         #################
         # Print results #
@@ -196,12 +195,12 @@ if __name__ == "__main__":
             l = []
             args = []
             # collect args
-            for i in range(10000, 13000):
-                applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(main_df["reactant"].iloc[i]))
-                assert main_df.iloc[i].name in applicable_actions_df.index, f"The chosen action is not in applicable actions??? i = {i}"
+            for i in range(3000):
+                applicable_actions_df = get_applicable_actions(Chem.MolFromSmiles(main_df["reactant"].iloc[10000+i]))
+                assert main_df.iloc[10000+i].name in applicable_actions_df.index, f"The chosen action is not in applicable actions??? i = {10000+i}"
                 args.append(
                         (
-                            (applicable_actions_df.index == main_df.iloc[i].name).argmax(), 
+                            (applicable_actions_df.index == main_df.iloc[10000+i].name).argmax(), 
                             ((action_embeddings[action_dataset.index.isin(applicable_actions_df.index)] - pred[i])[:, idx:idx+emb_len]**2).sum(axis=1)
                     )
                 )
