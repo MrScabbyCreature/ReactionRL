@@ -1,4 +1,4 @@
-rom rdkit import Chem
+from rdkit import Chem
 import pickle, re
 import pandas as pd
 from matplotlib import pyplot as plt
