@@ -16,11 +16,11 @@ import torch.nn as nn
 parser = argparse.ArgumentParser()
 parser.add_argument("--N", type=int, default=100000, help="Number of data points to use")
 parser.add_argument("--normalize", action="store_true", help="Whether to call standard normalize")
-parser.add_argument("--hidden-size", type=int, default=512, help="Number of data points to use")
-parser.add_argument("--num-hidden", type=int, default=3, help="Number of data points to use")
-parser.add_argument("--lr", type=int, default=1e-3, help="Number of data points to use")
-parser.add_argument("--epochs", type=int, default=100, help="Number of data points to use")
-parser.add_argument("--batch-size", type=int, default=128, help="Number of data points to use")
+parser.add_argument("--hidden-size", type=int, default=512)
+parser.add_argument("--num-hidden", type=int, default=3)
+parser.add_argument("--lr", type=int, default=1e-3)
+parser.add_argument("--epochs", type=int, default=100)
+parser.add_argument("--batch-size", type=int, default=128)
 parser.add_argument("--results-dir", type=str, default="results")
 args = parser.parse_args()
 
@@ -128,13 +128,11 @@ action_dataset = action_dataset[["rsub", "rcen", "rsig", "rbond", "psub", "pcen"
 
 print(action_dataset.shape)
 
-# action_embeddings = []
-# for i in tqdm.tqdm(range(action_dataset.shape[0])):
-#     action_embeddings.append(clinton_gin_action_embedding(action_dataset.iloc[i]))
-# action_embeddings = np.stack(action_embeddings)
-# print("action_embeddings.shape", action_embeddings.shape)
-
-action_embeddings = np.load(f"datasets/my_uspto/supervised_zinc_gin/zinc2m_gin_action_embeddings.npy")
+action_embeddings = []
+for i in tqdm.tqdm(range(action_dataset.shape[0])):
+    action_embeddings.append(clinton_gin_action_embedding(action_dataset.iloc[i]))
+action_embeddings = np.stack(action_embeddings)
+print("action_embeddings.shape", action_embeddings.shape)
 
 if args.normalize:
     from sklearn.preprocessing import StandardScaler
