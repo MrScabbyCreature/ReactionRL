@@ -32,15 +32,13 @@ def get_mol_certificate(mol):
 def clean_hydrogen_in_smiles(smiles):
     '''
     Some clean-ups Idk how to do in molecule. So I do it in smiles after conversion.
-    1. Remove extra hydrogens for even sized rings (odd sized rings require one atom with explicitly competed valency: like c1cc[nH]c1)
-    2. Sometimes in the odd sized rings, there is the valency is extra for the explicitly completed atom - try removing hydrogen for those
+    1. Remove extra H - But odd sized aromatic rings need 1 atom with explicitly specified H's
     '''
-    smiles = re.sub("\[([a-zA-Z])H[0-9]\]", r"\1", smiles)
-    
-    if Chem.MolFromSmiles(smiles) is None:
-        smiles = re.sub("\[([a-zA-Z])H\]", r"\1", smiles)
-    
-    return smiles
+    s1 = re.sub("\[([^\]])H[0-9]?\]", r"\1", smiles) 
+    if Chem.MolFromSmiles(s1) is None: # Got rid of H from odd aromatic ring
+        s2 = re.sub("\[([A-Z])H[0-9]?\]", r"\1", smiles)
+        return s2
+    return s1
 
 
 def mol_with_atom_index( mol ):
