@@ -4,6 +4,7 @@ from action_wrapper import MoleculeEmbeddingsActionWrapper
 from rewards.properties import *
 from rdkit import Chem
 import argparse, os
+import numpy as np
 import torch
 from mol_embedding.zinc2m_gin import Zinc_GIN_Embedder
 
@@ -19,7 +20,12 @@ parser.add_argument("--goal-conditioned", action="store_true", help="goal")
 parser.add_argument("--source-mol", type=str, default=None, help="Source molecule")
 parser.add_argument("--target-mol", type=str, default=None, help="Target molecule")
 parser.add_argument("--device", type=str, default="cpu", help="Torch device ('cpu' or 'cuda:n')")
+parser.add_argument("--seed", type=int, default=42, help="numpy and torch seed")
 args = parser.parse_args()
+
+# Set seeds
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
 
 # Check for cannot give "sim" (similarity) as a reward without GCRL
 if args.reward_metric == "sim":
@@ -38,7 +44,8 @@ def run_training_or_inference(model, path, args):
                             save_path=path + "/",
                             name_prefix="checkpoint",
                             )
-        env.set_replay_buffer(model.replay_buffer)
+        if hasattr(model, "replay_buffer"):
+            env.set_replay_buffer(model.replay_buffer)
         model.learn(total_timesteps=args.timesteps, callback=[eval_callback, checkpoint_callback])
         model.save(path+"/model")
 
