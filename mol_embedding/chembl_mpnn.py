@@ -6,6 +6,7 @@ import pickle
 import sys
 from mol_embedding.deepchem_featurizer import _featurize
 from rdkit import Chem
+from mol_embedding.base_embedding_class import BaseEmbeddingClass
 
 dc.feat.MolGraphConvFeaturizer._featurize = _featurize
 
@@ -71,27 +72,32 @@ class MPNNAtomEmbedder(nn.Module):
         node_feats = self.gnn(dgl_g, dgl_g.ndata["x"], dgl_g.edata["edge_attr"])
         return node_feats[idx]
 
-# Featurizer
-f = dc.feat.MolGraphConvFeaturizer(use_edges=True, use_partial_charge=True)
+class ChemBL_MPNN_Embedder(BaseEmbeddingClass):
+    def __init__(self, mol_emb_model_path="models/MPNNMolEmbedder.pt", atom_emb_model_path="models/MPNNAtomEmbedder.pt"):
+        super().__init__()
+    
+        # Featurizer
+        self.f = dc.feat.MolGraphConvFeaturizer(use_edges=True, use_partial_charge=True)
 
-# Model
-mol_em_model = torch.load("models/MPNNMolEmbedder.pt", pickle_module=sys.modules[__name__])
-atom_em_model = torch.load("models/MPNNAtomEmbedder.pt", pickle_module=sys.modules[__name__])
+        # Model
+        self.mol_em_model = torch.load(mol_emb_model_path, pickle_module=sys.modules[__name__])
+        self.atom_em_model = torch.load(atom_emb_model_path, pickle_module=sys.modules[__name__])
 
-def mol_to_embedding(mol):
-    if isinstance(mol, str):
-        mol = Chem.MolFromSmiles(mol)
-    features = f.featurize([mol])[0]
-    return mol_em_model([features])[0].cpu().detach().numpy()
+    def mol_to_embedding(self, mol):
+        if isinstance(mol, str):
+            mol = Chem.MolFromSmiles(mol)
+        features = self.f.featurize([mol])[0]
+        return self.mol_em_model([features])[0].cpu().detach().numpy()
 
-def atom_to_embedding(mol, idx):
-    if isinstance(mol, str):
-        mol = Chem.MolFromSmiles(mol)
-    features = f.featurize([mol])[0]
-    return atom_em_model([features], idx).cpu().detach().numpy()
+    def atom_to_embedding(self, mol, idx):
+        if isinstance(mol, str):
+            mol = Chem.MolFromSmiles(mol)
+        features = self.f.featurize([mol])[0]
+        return self.atom_em_model([features], idx).cpu().detach().numpy()
 
 if __name__ == "__main__":
-    print(mol_to_embedding(Chem.MolFromSmiles("CC")))
-    print(atom_to_embedding(Chem.MolFromSmiles("CC"), 1))
-    print(mol_to_embedding(Chem.MolFromSmiles("C")))
-    print(atom_to_embedding(Chem.MolFromSmiles("C"), 0))
+    mpnn_embedder = ChemBL_MPNN_Embedder()
+    print(mpnn_embedder.mol_to_embedding(Chem.MolFromSmiles("CC")))
+    print(mpnn_embedder.atom_to_embedding(Chem.MolFromSmiles("CC"), 1))
+    print(mpnn_embedder.mol_to_embedding(Chem.MolFromSmiles("C")))
+    print(mpnn_embedder.atom_to_embedding(Chem.MolFromSmiles("C"), 0))

@@ -12,7 +12,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, Draw
 from action_utils import *
 from utils import *
-from mol_embedding.chembl_mpnn import mol_to_embedding, atom_to_embedding
+from mol_embedding.zinc2m_gin import Zinc_GIN_Embedder
 from action_wrapper import MoleculeEmbeddingsActionWrapper
 
 
@@ -50,14 +50,14 @@ class ChemRlEnv(gym.Env):
   """Custom Environment that follows gym interface"""
   metadata = {'render.modes': ['human', 'ansi', "all"], "reward.metrics": ["logp", "qed", "drd2"]}
 
-  def __init__(self, low=-1, high=1, mol_embedding_fn=mol_to_embedding, atom_embedding_fn=atom_to_embedding, reward_metric="logp", goal=False, render_mode="ansi"):
+  def __init__(self, low=-1, high=1, emb_obj=None, reward_metric="logp", goal=False, render_mode="ansi"):
     '''
     low = min value of 
     K = size of molecule embedding
-    mol_embedding_fn: function
+    mol_to_embedding: function
       Input: Mol
       Output: Some fixed size vector representation of mol
-    atom_embedding_fn: function
+    atom_to_embedding: function
       Input: Mol, atom_idx
       Output: Some fixed size vector representation of atom
     reward_metric: metric to use as reward # TODO: Allow passing function / hyperparameters for linear combination of multiple properties
@@ -71,12 +71,15 @@ class ChemRlEnv(gym.Env):
     self.low = low
     self.high = high
     random_mol = start_mols[0]
-    mol_embedding_len = mol_embedding_fn(random_mol).shape[-1]
-    atom_embedding_len = atom_embedding_fn(random_mol, 0).shape[-1]
+    # self.emb_obj.mol_to_embedding = mol_to_embedding
+    # self.emb_obj.atom_to_embedding = atom_to_embedding
+    self.emb_obj = emb_obj
+    if self.emb_obj is None:
+      self.emb_obj = Zinc_GIN_Embedder() # Defaut to Zinc2m_GIN
+    mol_embedding_len = self.emb_obj.mol_to_embedding(random_mol).shape[-1]
+    atom_embedding_len = self.emb_obj.atom_to_embedding(random_mol, 0).shape[-1]
     self.observation_space = Box(low=low, high=high, shape=(mol_embedding_len*(goal+1),), dtype=np.float32)
     self.action_space = Box(low=low, high=high, shape=(4*mol_embedding_len+2*atom_embedding_len,), dtype=np.float32) # TODO: Make default action space some tuple/dict of smile strings and centre(ints). The embedding space will be implemented through wrappers
-    self.mol_embedding_fn = mol_embedding_fn
-    self.atom_embedding_fn = atom_embedding_fn
     self.reward_metric = reward_metric
     self.goal = goal
     self.replay_buffer = None
@@ -91,7 +94,7 @@ class ChemRlEnv(gym.Env):
     return {"mol": mol, "target": target}
 
   def _state_embedding(self, mol):
-    return self.mol_embedding_fn(mol)
+    return self.emb_obj.mol_to_embedding(mol)
   
   def _action_embedding(self, action):
     rsub, rcen, rsig, _, psub, pcen, psig, __ = action
@@ -99,12 +102,12 @@ class ChemRlEnv(gym.Env):
     rsig = Chem.MolFromSmiles(rsig)
     psub = Chem.MolFromSmiles(psub)
     psig = Chem.MolFromSmiles(psig)
-    embedding = np.concatenate([self.mol_embedding_fn(rsub), self.atom_embedding_fn(rsig, GetAtomWithAtomMapNum(rsig, rcen).GetIdx()), self.mol_embedding_fn(rsig),
-                              self.mol_embedding_fn(psub), self.atom_embedding_fn(psig, GetAtomWithAtomMapNum(psig, pcen).GetIdx()), self.mol_embedding_fn(psig),])
+    embedding = np.concatenate([self.emb_obj.mol_to_embedding(rsub), self.emb_obj.atom_to_embedding(rsig, GetAtomWithAtomMapNum(rsig, rcen).GetIdx()), self.emb_obj.mol_to_embedding(rsig),
+                              self.emb_obj.mol_to_embedding(psub), self.emb_obj.atom_to_embedding(psig, GetAtomWithAtomMapNum(psig, pcen).GetIdx()), self.emb_obj.mol_to_embedding(psig),])
     return embedding
 
   def get_random_action(self):
-    return self._action_embedding(self.applicable_actions.sample().iloc[0]) # Can be done with the pickle dict for hash -> embedding (df.index is hash)
+    return self._action_embedding(get_random_action(self.state))
 
   def step(self, action):
     '''

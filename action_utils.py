@@ -206,13 +206,13 @@ def get_applicable_actions(mol, random_state=None):
 
     return dataset[dataset["rsig_clusters"].isin(applicable_clusters)][return_format]
 
-# def get_random_action(mol, random_state=None):
-#     applicable_clusters = get_applicable_rsig_clusters(mol)
-#     return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
+def get_random_action(mol, random_state=None):
+    applicable_clusters = get_applicable_rsig_clusters(mol)
+    return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
 
-#     # random sample
-#     sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0] 
-#     return sample.values
+    # random sample
+    sample = dataset[dataset["rsig_clusters"].isin(applicable_clusters)].sample(random_state=random_state)[return_format].iloc[0] 
+    return sample.values
 
 def filter_sensible_rsig_matches(mol, rsig_matches, rsig, rsub, rcen):
     '''

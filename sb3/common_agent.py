@@ -4,6 +4,8 @@ from action_wrapper import MoleculeEmbeddingsActionWrapper
 from rewards.properties import *
 from rdkit import Chem
 import argparse, os
+import torch
+from mol_embedding.zinc2m_gin import Zinc_GIN_Embedder
 
 from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 
@@ -16,12 +18,14 @@ parser.add_argument("--reward-metric", type=str, choices=["logp", "qed", "drd2",
 parser.add_argument("--goal-conditioned", action="store_true", help="goal")
 parser.add_argument("--source-mol", type=str, default=None, help="Source molecule")
 parser.add_argument("--target-mol", type=str, default=None, help="Target molecule")
+parser.add_argument("--device", type=str, default="cpu", help="Torch device ('cpu' or 'cuda:n')")
 args = parser.parse_args()
 
 # Check for cannot give "sim" (similarity) as a reward without GCRL
 if args.reward_metric == "sim":
     assert args.goal_conditioned, "Cannot give a similarity reward without a target (GCRL)"
 
+emb_model = Zinc_GIN_Embedder(device=torch.device(args.device))
 env = MoleculeEmbeddingsActionWrapper(ChemRlEnv(reward_metric=args.reward_metric, goal=args.goal_conditioned, render_mode="all"))
 
 def run_training_or_inference(model, path, args):
