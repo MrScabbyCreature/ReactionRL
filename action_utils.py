@@ -202,7 +202,7 @@ def mark_action_invalid(idx):
 
 def get_applicable_actions(mol, random_state=None):
     applicable_clusters = get_applicable_rsig_clusters(mol)
-    return_format = ["rsub", "rcen", "rsig", "rbond", "rsig_cs_indices", "psub", "pcen", "psig", "pbond", "psig_cs_indices"]
+    return_format = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
 
     return dataset[dataset["rsig_clusters"].isin(applicable_clusters)][return_format]
 
@@ -238,56 +238,7 @@ def filter_sensible_rsig_matches(mol, rsig_matches, rsig, rsub, rcen):
     rsig_matches = list(filter(verify, rsig_matches))
     return rsig_matches
 
-def _apply_actions_fast(input_mol, rsub, rcen, rsig, rbond, rsig_cs_indices, psub, pcen, psig, pbond, psig_cs_indices):
-    if not rbond == pbond or "1" not in pbond: # Replacing bonds other than 1-->1 tends to fail
-        return None
-
-    # Reduce H from pcen atom - AllChem.ReplaceSubstructs results in invalid atoms otherwise    
-    try:
-        query_string = re.findall(f"H[0-9]?:{pcen}]", psub)[0]
-    except Exception as e:
-        return None
-    # case 1: It has 1 H ([XH:pcen] --> [X:pcen])
-    if query_string[1] == ":":
-        replace_string = query_string[1:]
-    # case 2: It has more than 1 H ([XHn:pcen] --> [XHn-1:pcen])
-    else:
-        replace_string = f"H{int(query_string[1])-1}" + query_string[2:]
-    psub = re.sub(query_string, replace_string, psub)
-
-    # Clean subgraphs
-    clean_rsub = Chem.RemoveHs(mol_without_atom_index(Chem.MolFromSmiles((rsub))))
-    clean_psub = Chem.RemoveHs(mol_without_atom_index(Chem.MolFromSmiles((psub))))
-
-    # Replace and filter
-    pcen = int(pcen) - min(list(map(int, re.findall(":([0-9]+)", psub)))) # subtract the min atom_map_num\
-    try:
-        pcen = clean_psub.GetSubstructMatch(Chem.MolFromSmiles(psub))[pcen] # Index for mol with and without AtomMapNum is different. This line does that mapping for pcen
-    except:
-        return None
-    products = AllChem.ReplaceSubstructs(input_mol, clean_rsub, clean_psub, replacementConnectionPoint=pcen)
-    _psig = mol_without_atom_index(Chem.MolFromSmiles(psig))
-    products = list(filter(lambda x: x.HasSubstructMatch(_psig), products))
-    
-    # There are cases with multiple possibilities of products or multiple molecules in product - these are failed cases
-    if len(products) != 1 or "." in Chem.MolToSmiles(products[0]):# or Chem.MolFromSmiles(Chem.MolToSmiles(products[0])) is not None:
-        return None
-    
-    # Get rid of extra H's
-    p_smile = Chem.MolToSmiles(products[0])
-    p_smile = clean_hydrogen_in_smiles(p_smile)
-    product = Chem.MolFromSmiles(p_smile)
-    
-    return product
-
-
-def apply_action(input_mol, rsub, rcen, rsig, rbond, rsig_cs_indices, psub, pcen, psig, pbond, psig_cs_indices, use_advanced_algo=False):
-    # Try faster algo - doesn't work always but is about 3x faster on avg on my cpu
-    if not use_advanced_algo:
-        product = _apply_actions_fast(input_mol, rsub, rcen, rsig, rbond, rsig_cs_indices, psub, pcen, psig, pbond, psig_cs_indices)
-        if product is not None:
-            return product
-
+def apply_action(input_mol, rsub, rcen, rsig, rsig_cs_indices, psub, pcen, psig, psig_cs_indices):
     # Some basic conversions acc. to dataset format
     input_mol = Chem.Mol(input_mol)
     rsig = Chem.MolFromSmiles(rsig)
