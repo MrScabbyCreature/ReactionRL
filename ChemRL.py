@@ -2,8 +2,8 @@
 Action format (for now) = ["rsub", "rcen", "rsig", "rsig_cs_indices", "psub", "pcen", "psig", "psig_cs_indices"]
 '''
 
-import gym
-from gym.spaces import Box
+import gymnasium as gym
+from gymnasium.spaces import Box
 import numpy as np
 import pandas as pd
 import os
@@ -146,16 +146,16 @@ class ChemRlEnv(gym.Env):
     if self.goal:
       self.obs = np.append(self.obs, self._state_embedding(self.target))
 
-    return self.obs, rew, done, self._get_info(self.state)
+    return self.obs, rew, done, False, self._get_info(self.state)
 
 
-  def reset(self, seed=None, return_info=False, options={}):
+  def reset(self, seed=None, options={}):
     global MAX_EPISODE_LEN
     # Reset the state of the environment to an initial state
     super().reset(seed=seed)
     self.trajectory = TrajectoryTracker()
 
-    if "source" in options:
+    if options is not None and "source" in options:
       smiles = options["source"]
       mol = Chem.MolFromSmiles(smiles)
       self.applicable_actions = get_applicable_actions(mol)
@@ -179,7 +179,7 @@ class ChemRlEnv(gym.Env):
 
     # If goal conditioned RL, then construct a target and add to state observation
     self.target = None
-    if "target" in options:
+    if options is not None and "target" in options:
       self.target = Chem.MolFromSmiles(options["target"])
     elif self.goal:
       listy_for_replay_buffer = []
@@ -224,7 +224,7 @@ class ChemRlEnv(gym.Env):
     # info
     info = self._get_info(mol, self.target)
 
-    return (obs, info) if return_info else obs
+    return obs, info
 
 
   def render(self): 
@@ -285,12 +285,12 @@ if __name__ == "__main__":
   env = MoleculeEmbeddingsActionWrapper(_env)
 
 
-  # Check the environment conforms to gym API
-  from gym.utils.env_checker import check_env
+  # Check the environment conforms to gym API # TODO: Do this for Gymnasion
+  # from gym.utils.env_checker import check_env 
   # print(check_env(env)) # FIXME: The action input to the env is currently wrong
 
   # Run a demo
-  observation, info = env.reset(seed=args.seed, return_info=True)
+  observation, info = env.reset(seed=args.seed)
   print("Starting mol:", Chem.MolToSmiles(info["mol"]))
 
   done = False
@@ -302,7 +302,7 @@ if __name__ == "__main__":
 
     # print("ACTION")
     # print(action)
-    observation, reward, done, info = env.step(action)
+    observation, reward, done, trun, info = env.step(action)
     # print(observation, reward, done, info)
 
   if args.render:

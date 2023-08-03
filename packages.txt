@@ -1,3 +1,5 @@
-pip install deepchem dgl dgllife filehash gym pillow ipython matplotlib networkx pandas rdkit scikit-learn seaborn tensorboard stable_baselines3 torch==1.11 tqdm
+pip install deepchem dgl dgllife filehash gym pillow ipython matplotlib networkx pandas rdkit scikit-learn seaborn tensorboard stable_baselines3 torch tqdm
 pip install --upgrade gym
+pip install torch-scatter torch-cluster -f https://pytorch-geometric.com/whl/torch-1.13.0+cu11.html
+pip install torchdrug
 sudo apt-get install libxrender1 

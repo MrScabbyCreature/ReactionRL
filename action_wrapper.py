@@ -1,5 +1,5 @@
-import gym
-from gym.spaces import Box
+import gymnasium as  gym
+from gymnasium.spaces import Box
 import pickle, os
 import numpy as np
 from utils import MAIN_DIR
