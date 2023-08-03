@@ -1,0 +1,10 @@
+uspto - data dump.ipynb # Creates processed_data.csv
+uspto - reaction centre and signature.py # Creates simulator_dataset.csv
+uspto - action database dump.ipynb # Creates action_dataset.csv with rsig_cluster for fast searching
+uspto - simulator.ipynb # Creates action_dataset-updated.csv with [rp]sig_cs_indices
+filter_action_dataset.py # Creates action_dataset-filtered.csv with info about actions that result in errors
+uspto - filter for bad actions 2.ipynb # Updates action_dataset-filtered.csv with info about actions that result in incorrect product
+
+
+unorderded 
+uspto - remove ions.ipynb # Gets rid of reactions with ions. Preferably after creating signatures and centres
