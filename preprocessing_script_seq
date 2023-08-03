@@ -5,6 +5,7 @@ uspto - simulator.ipynb # Creates action_dataset-updated.csv with [rp]sig_cs_ind
 filter_action_dataset.py # Creates action_dataset-filtered.csv with info about actions that result in errors
 uspto - filter for bad actions 2.ipynb # Updates action_dataset-filtered.csv with info about actions that result in incorrect product
 
+dump_action_embeddings.ipynb # Dump action embeddings for action database - for quick access
 
 unorderded 
 uspto - remove ions.ipynb # Gets rid of reactions with ions. Preferably after creating signatures and centres
