@@ -146,6 +146,10 @@ class ActorNetwork(nn.Module):
         self.GIN = torch.load("models/zinc2m_gin.pth")
         self.DENSE = NeuralNet(self.GIN.output_dim*2, self.GIN.output_dim*2, num_hidden=3, hidden_size=256)
     
+    @property
+    def actor(self):
+        return self.DENSE
+
     def forward(self, x1, x2, *args):
         out1 = self.GIN(x1, x1.node_feature.float())["graph_feature"]
         out2 = self.GIN(x2, x2.node_feature.float())["graph_feature"]
