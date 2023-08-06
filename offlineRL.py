@@ -125,7 +125,7 @@ for epoch in range(1, epochs+1):
                 correct_action_dataset_index = correct_action_dataset_indices[train_idx[i+_i]]
                 if args.negative_selection == "random":
                     size = min(topk, action_embedding_indices[train_idx[i+_i]].shape[0])
-                    negative_indices.append(np.random.choice(correct_action_dataset_index, size=(size,), replace=False))
+                    negative_indices.append(np.random.choice(action_embedding_indices, size=(size,), replace=False))
                 if args.negative_selection == "closest":
                     curr_out = actor_actions[_i].detach()
                     dist = torch.linalg.norm(action_embeddings - curr_out, axis=1)
