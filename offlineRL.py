@@ -65,15 +65,13 @@ valid_idx = np.arange(int(train_df.shape[0]*0.8), train_df.shape[0])
 
 train_reactants = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[train_idx]["reactant"]))).to(device)
 train_products = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[train_idx]["product"]))).to(device)
-if train_critic:
-    train_rsigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[train_idx]["rsig"]))).to(device)
-    train_psigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[train_idx]["psig"]))).to(device)
+train_rsigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[train_idx]["rsig"]))).to(device)
+train_psigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[train_idx]["psig"]))).to(device)
 
 valid_reactants = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[valid_idx]["reactant"]))).to(device)
 valid_products = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[valid_idx]["product"]))).to(device)
-if train_critic:
-    valid_rsigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[valid_idx]["rsig"]))).to(device)
-    valid_psigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[valid_idx]["psig"]))).to(device)
+valid_rsigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[valid_idx]["rsig"]))).to(device)
+valid_psigs = data.Molecule.pack(list(map(molecule_from_smile, train_df.iloc[valid_idx]["psig"]))).to(device)
 
 print("Train and valid data shapes:")
 print(train_reactants.batch_size, train_products.batch_size, valid_reactants.batch_size, valid_products.batch_size)
@@ -125,7 +123,7 @@ for epoch in range(1, epochs+1):
                 correct_action_dataset_index = correct_action_dataset_indices[train_idx[i+_i]]
                 if args.negative_selection == "random":
                     size = min(topk, action_embedding_indices[train_idx[i+_i]].shape[0])
-                    negative_indices.append(np.random.choice(action_embedding_indices, size=(size,), replace=False))
+                    negative_indices.append(np.random.choice(action_embedding_indices[train_idx[i+_i]], size=(size,), replace=False))
                 if args.negative_selection == "closest":
                     curr_out = actor_actions[_i].detach()
                     dist = torch.linalg.norm(action_embeddings - curr_out, axis=1)
