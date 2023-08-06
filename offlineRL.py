@@ -86,7 +86,8 @@ if train_critic:
 critic_loss_criterion = nn.MSELoss()
 
 # For actor log prob calc
-actor_log_std = nn.Parameter(torch.zeros(model.actor.last_layer.out_features, dtype=torch.float32)).to(device)
+if train_actor:
+    actor_log_std = nn.Parameter(torch.zeros(model.actor.last_layer.out_features, dtype=torch.float32)).to(device)
 
 # Embeddings init
 embedding_model = torch.load("models/zinc2m_gin.pth").to(device)
