@@ -317,7 +317,7 @@ for epoch in range(1, epochs+1):
         action_embeddings_norm = torch.linalg.norm(action_embeddings, axis=1)
 
 # save everything
-folder = f"models/supervised/{args.model_type}/steps={args.steps}||actor_loss={args.actor_loss}"
+folder = f"models/supervised/{args.model_type}/steps={args.steps}||actor_loss={args.actor_loss}||negative_selection={args.negative_selection}"
 os.makedirs(folder, exist_ok = True)
 
 if train_actor:
