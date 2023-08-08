@@ -18,11 +18,16 @@ parser.add_argument("--model-type", type=str, choices=["actor", "critic", "actor
 parser.add_argument("--actor-loss", type=str, choices=["mse", "PG"], default=None, help="Actor loss")
 parser.add_argument("--negative-selection", type=str, choices=["random", "closest"], default=None, help="Actor loss")
 parser.add_argument("--cuda", type=int, required=True, help="Which device to use")
+parser.add_argument("--seed", type=int, default=42, help="seed for numpy and torch")
 args = parser.parse_args()
 
 # Device
 device = torch.device(f"cuda:{args.cuda}" if torch.cuda.is_available() else "cpu")
 print(f"Using device {device}")
+
+# Set seed
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
 
 # Load data
 train_df = pd.read_csv(f"datasets/offlineRL/{args.steps}steps_train.csv", index_col=0).sample(frac=1)
