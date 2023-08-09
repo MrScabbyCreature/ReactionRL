@@ -121,7 +121,7 @@ for epoch in range(1, epochs+1):
         # Forward pass
         actor_actions = model(train_reactants[i:i+batch_size], train_products[i:i+batch_size], train_rsigs[i:i+batch_size], train_psigs[i:i+batch_size], "actor")
 
-        if train_critic or args.actor_loss == "PG":
+        if train_critic or (train_actor and args.actor_loss == "PG"):
             # Calc negatives
             negative_indices = []
 
@@ -131,7 +131,10 @@ for epoch in range(1, epochs+1):
                     size = min(topk, action_embedding_indices[train_idx[i+_i]].shape[0])
                     negative_indices.append(np.random.choice(action_embedding_indices[train_idx[i+_i]], size=(size,), replace=False))
                 if args.negative_selection == "closest":
-                    curr_out = actor_actions[_i].detach()
+                    if train_actor:
+                        curr_out = actor_actions[_i].detach()
+                    else:
+                        curr_out = action_embeddings[correct_action_dataset_index]
                     dist = torch.linalg.norm(action_embeddings - curr_out, axis=1)
                     sorted_idx = torch.argsort(dist)[:topk] # get topk
                     sorted_idx = sorted_idx[sorted_idx != correct_action_dataset_index] # Remove if correct index in list
