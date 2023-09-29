@@ -16,7 +16,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--steps", type=int, required=True, help="Which step data to load")
 parser.add_argument("--model-type", type=str, choices=["actor", "critic", "actor-critic"], required=True, help="Type of model to train")
 parser.add_argument("--actor-loss", type=str, choices=["mse", "PG"], default=None, help="Actor loss")
-parser.add_argument("--negative-selection", type=str, choices=["random", "closest"], default=None, help="Actor loss")
+parser.add_argument("--negative-selection", type=str, choices=["random", "closest", "e-greedy", "combined"], default=None, help="Negative selection strategy")
 parser.add_argument("--cuda", type=int, required=True, help="Which device to use")
 parser.add_argument("--seed", type=int, default=42, help="seed for numpy and torch")
 args = parser.parse_args()
@@ -127,18 +127,23 @@ for epoch in range(1, epochs+1):
 
             for _i in range(actor_actions.shape[0]):
                 correct_action_dataset_index = correct_action_dataset_indices[train_idx[i+_i]]
-                if args.negative_selection == "random":
-                    size = min(topk, action_embedding_indices[train_idx[i+_i]].shape[0])
-                    negative_indices.append(np.random.choice(action_embedding_indices[train_idx[i+_i]], size=(size,), replace=False))
-                if args.negative_selection == "closest":
-                    if train_actor:
-                        curr_out = actor_actions[_i].detach()
-                    else:
-                        curr_out = action_embeddings[correct_action_dataset_index]
-                    dist = torch.linalg.norm(action_embeddings - curr_out, axis=1)
-                    sorted_idx = torch.argsort(dist)[:topk] # get topk
-                    sorted_idx = sorted_idx[sorted_idx != correct_action_dataset_index] # Remove if correct index in list
-                    negative_indices.append(sorted_idx)
+
+                temp_list = []
+                # Add some random ones
+                size = min(topk, action_embedding_indices[train_idx[i+_i]].shape[0])
+                temp_list.append(np.random.choice(action_embedding_indices[train_idx[i+_i]], size=(size//2,), replace=False))
+
+                # Add some common ones
+                if train_actor:
+                    curr_out = actor_actions[_i].detach()
+                else:
+                    curr_out = action_embeddings[correct_action_dataset_index]
+                dist = torch.linalg.norm(action_embeddings - curr_out, axis=1)
+                sorted_idx = torch.argsort(dist)[:topk] # get topk
+                sorted_idx = sorted_idx[sorted_idx != correct_action_dataset_index] # Remove if correct index in list
+                temp_list.append(sorted_idx[:sorted_idx.shape[0]//2].cpu().numpy())
+                
+                negative_indices.append(np.concatenate(temp_list))
 
         # critic update
         if train_critic:

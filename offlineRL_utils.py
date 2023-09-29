@@ -78,8 +78,8 @@ def get_action_embedding_from_packed_molecule(model, rsig, psig):
     embedding = torch.concatenate([get_mol_embedding(model, rsig), get_mol_embedding(model, psig)], axis=1)
     return embedding
 
-def get_action_dataset_embeddings(model, action_rsigs, action_psigs):
-    batch_size = 2048
+def get_action_dataset_embeddings(model, action_rsigs, action_psigs, batch_size=2048):
+    # batch_size = 2048
     action_embeddings = []
     for i in tqdm.tqdm(range(0, action_rsigs.batch_size, batch_size)):
         batch_rsig = action_rsigs[i:min(i+batch_size, action_rsigs.batch_size)]
@@ -178,7 +178,7 @@ class ActorCritic(nn.Module):
     def __init__(self):
         super(ActorCritic, self).__init__()
         self.GIN = torch.load("models/zinc2m_gin.pth")
-        self.actor = NeuralNet(self.GIN.output_dim*2, self.GIN.output_dim*2, num_hidden=3, hidden_size=500)
+        self.actor = NeuralNet(self.GIN.output_dim*2, self.GIN.output_dim*2, num_hidden=3, hidden_size=256)
         self.critic = NeuralNet(self.GIN.output_dim*4, 1, num_hidden=2, hidden_size=256)
     
     def forward(self, reac, prod, rsig, psig, out_type="both"):
