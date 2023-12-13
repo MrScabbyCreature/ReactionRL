@@ -1,19 +1,11 @@
-from csv import excel_tab
-from sqlite3 import connect
 from rdkit import Chem
-import pickle
 import numpy as np
 import pandas as pd
 from IPython.display import display
 from copy import deepcopy
 
 from rdkit import Chem
-from rdkit.Chem import Draw
-from rdkit.Chem.Draw import SimilarityMaps
-from rdkit import DataStructs
 from rdkit.Chem import rdFMCS
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdchem
 
 # draw molecule with index
 def mol_with_atom_index( mol ):
