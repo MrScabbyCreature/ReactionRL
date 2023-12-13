@@ -13,3 +13,6 @@ python -m preprocessing.filter_action_dataset_2
 
 # Dump start molecules 
 python -m preprocessing.dump_start_mols
+
+# Dump action embeddings - Repetitive (and very expensive) to compute during run-time 
+python -m preprocessing.dump_action_embeddings
