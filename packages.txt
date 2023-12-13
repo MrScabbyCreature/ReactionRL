@@ -1,6 +1,0 @@
-pip install deepchem dgl dgllife filehash pillow ipython matplotlib networkx pandas rdkit scikit-learn seaborn tensorboard stable_baselines3 tqdm
-pip install gymnasium
-pip install torch
-pip install torch-scatter torch-cluster -f https://pytorch-geometric.com/whl/torch-1.13.0+cu11.html # Check output for torch to select versions
-pip install torchdrug
-sudo apt-get install libxrender1  # Required for the draw package. Install if code gives error.
