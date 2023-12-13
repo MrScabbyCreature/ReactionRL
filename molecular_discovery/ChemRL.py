@@ -13,7 +13,7 @@ from rdkit.Chem import AllChem, Draw
 from action_utils import *
 from utils import *
 from mol_embedding.zinc2m_gin import Zinc_GIN_Embedder
-from action_wrapper import MoleculeEmbeddingsActionWrapper
+from molecular_discovery.action_wrapper import MoleculeEmbeddingsActionWrapper
 
 
 start_mols = pd.read_pickle(os.path.join(MAIN_DIR, "datasets/my_uspto/unique_start_mols.pickle"))

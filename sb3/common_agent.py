@@ -1,5 +1,5 @@
-from ChemRL import ChemRlEnv
-from action_wrapper import MoleculeEmbeddingsActionWrapper
+from molecular_discovery.ChemRL import ChemRlEnv
+from molecular_discovery.action_wrapper import MoleculeEmbeddingsActionWrapper
 
 from rewards.properties import *
 from rdkit import Chem
